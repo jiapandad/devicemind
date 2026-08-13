@@ -13,6 +13,7 @@ from devicemind.runtime import build_command, match_action, validate_params, Par
 from devicemind.intent import IntentParser  # noqa: E402
 from devicemind.simulator import VirtualDevice, VirtualHub  # noqa: E402
 from devicemind.scene import SceneManager, Scene, SceneStep  # noqa: E402
+from devicemind.verify import verify_device, pick_verify_action  # noqa: E402
 
 
 # 预置测试设备
@@ -231,3 +232,32 @@ def test_scene_missing_device_tolerated():
     results = mgr.trigger("测试", {"lamp-01": lamp}, hub)
     assert "error" in results[1]  # 第二个设备不存在，容错记录 error
     assert hub.get("lamp-01").get_state()["power"] == "on"
+
+
+# ---------------------------------------------------------------------------
+# 编译试运行验证闭环（P0）
+# ---------------------------------------------------------------------------
+def test_verify_correct_topic():
+    device = _sample_device()
+    hub = VirtualHub()
+    hub.register(VirtualDevice("lamp-01", "灯", expected_topic="smarthome/lamp01/set"))
+
+    ok, err = verify_device(device, hub, "lamp-01")
+    assert ok, err
+
+
+def test_verify_wrong_topic():
+    device = _sample_device()
+    device["control"]["commands"]["turn_on"]["topic"] = "wrong/topic"
+    hub = VirtualHub()
+    hub.register(VirtualDevice("lamp-01", "灯", expected_topic="smarthome/lamp01/set"))
+
+    ok, err = verify_device(device, hub, "lamp-01")
+    assert not ok
+    assert "topic" in err
+
+
+def test_pick_verify_action():
+    device = _sample_device()
+    # 无 get_state，应退回 turn_on
+    assert pick_verify_action(device) == "turn_on"
