@@ -2,6 +2,9 @@ openai>=1.0.0
 requests>=2.31.0
 pypdf>=4.0.0
 
+# Web UI（浏览器界面，让普通用户使用）
+flask>=3.0.0
+
 # OCR 支持（扫描版 PDF 说明书，可选）
 # 安装：pip install rapidocr-onnxruntime pymupdf
 rapidocr-onnxruntime>=1.2.0
