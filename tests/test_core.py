@@ -14,6 +14,7 @@ from devicemind.intent import IntentParser  # noqa: E402
 from devicemind.simulator import VirtualDevice, VirtualHub  # noqa: E402
 from devicemind.scene import SceneManager, Scene, SceneStep  # noqa: E402
 from devicemind.verify import verify_device, pick_verify_action  # noqa: E402
+from devicemind import storage  # noqa: E402
 
 
 # 预置测试设备
@@ -261,3 +262,59 @@ def test_pick_verify_action():
     device = _sample_device()
     # 无 get_state，应退回 turn_on
     assert pick_verify_action(device) == "turn_on"
+
+
+# ---------------------------------------------------------------------------
+# 持久化（P2）
+# ---------------------------------------------------------------------------
+def test_storage_states_roundtrip():
+    import os
+    import tempfile
+    tmp = tempfile.mkdtemp()
+    os.environ["DEVICEMIND_DATA"] = tmp
+    storage.save_states({"lamp-01": {"power": "on", "brightness": 50}})
+    loaded = storage.load_states()
+    assert loaded["lamp-01"]["brightness"] == 50
+
+
+def test_scene_save_load_roundtrip():
+    import os
+    import tempfile
+    tmp = tempfile.mkdtemp()
+    os.environ["DEVICEMIND_DATA"] = tmp
+    mgr = SceneManager()
+    mgr.add(Scene(name="回家模式", steps=[SceneStep("lamp-01", "turn_on", {})]))
+    mgr.save()
+
+    mgr2 = SceneManager()
+    mgr2.load()
+    assert "回家模式" in mgr2.list_scenes()
+    assert mgr2.get("回家模式").steps[0].action == "turn_on"
+
+
+# ---------------------------------------------------------------------------
+# 熔断降级（P2）
+# ---------------------------------------------------------------------------
+class _FailingClient:
+    def __init__(self):
+        self.calls = 0
+
+    def chat(self, *args, **kwargs):
+        self.calls += 1
+        raise Exception("LLM 挂了")
+
+
+def test_intent_circuit_breaker():
+    client = _FailingClient()
+    parser = IntentParser(client=client, failure_threshold=2)
+    lamp = _sample_device()
+
+    # 第 1 次失败回退规则
+    assert parser.parse("打开", [lamp]).action == "turn_on"
+    # 第 2 次失败触发熔断
+    parser.parse("关闭", [lamp])
+    assert parser._llm_disabled is True
+    # 熔断后不再调 LLM
+    calls = client.calls
+    parser.parse("调到50%", [lamp])
+    assert client.calls == calls
