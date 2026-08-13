@@ -44,8 +44,15 @@ INTENT_SYSTEM_PROMPT = """你是 DeviceMind 的意图理解器。把用户的自
 class IntentParser:
     """意图解析器。"""
 
-    def __init__(self, client: LLMClient | None = None) -> None:
+    def __init__(
+        self,
+        client: LLMClient | None = None,
+        failure_threshold: int = 3,
+    ) -> None:
         self.client = client or LLMClient.from_env()
+        self.failure_threshold = failure_threshold
+        self._failures = 0
+        self._llm_disabled = False  # 熔断后直接走规则，不再等 LLM
 
     # ------------------------------------------------------------------
     def parse(
@@ -71,11 +78,20 @@ class IntentParser:
 
         states = states or {}
 
+        # 熔断：LLM 连续失败后直接走规则
+        if self._llm_disabled:
+            return self._parse_with_rules(text, devices, states)
+
         # 先尝试 LLM
         try:
-            return self._parse_with_llm(text, devices, states)
+            result = self._parse_with_llm(text, devices, states)
+            self._failures = 0  # 成功则重置计数
+            return result
         except Exception:
-            # LLM 不可用（未配置 key / 未装 Ollama），回退到规则
+            self._failures += 1
+            if self._failures >= self.failure_threshold:
+                self._llm_disabled = True  # 熔断，后续直接走规则
+            # 回退到规则
             return self._parse_with_rules(text, devices, states)
 
     # ------------------------------------------------------------------
