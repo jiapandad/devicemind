@@ -48,13 +48,19 @@ class IntentParser:
         self.client = client or LLMClient.from_env()
 
     # ------------------------------------------------------------------
-    def parse(self, text: str, devices: list[dict[str, Any]]) -> Intent:
+    def parse(
+        self,
+        text: str,
+        devices: list[dict[str, Any]],
+        states: dict[str, dict[str, Any]] | None = None,
+    ) -> Intent:
         """
         解析用户意图。
 
         参数:
             text: 用户自然语言指令
             devices: 可用设备列表（每个含 id/name/type/actions）
+            states: 设备当前状态 {device_id: {属性: 值}}，用于处理"再暗一点"等相对指令
 
         返回:
             Intent 对象
@@ -63,20 +69,27 @@ class IntentParser:
         if not text:
             raise ValueError("指令为空")
 
+        states = states or {}
+
         # 先尝试 LLM
         try:
-            return self._parse_with_llm(text, devices)
+            return self._parse_with_llm(text, devices, states)
         except Exception:
             # LLM 不可用（未配置 key / 未装 Ollama），回退到规则
-            return self._parse_with_rules(text, devices)
+            return self._parse_with_rules(text, devices, states)
 
     # ------------------------------------------------------------------
     def _parse_with_llm(
-        self, text: str, devices: list[dict[str, Any]]
+        self, text: str, devices: list[dict[str, Any]], states: dict[str, dict[str, Any]] | None = None
     ) -> Intent:
+        states = states or {}
         device_desc = _describe_devices(devices)
+        state_desc = _describe_states(states)
         user_prompt = f"""可用设备列表：
 {device_desc}
+
+设备当前状态：
+{state_desc}
 
 用户指令：{text}
 
@@ -102,12 +115,13 @@ class IntentParser:
 
     # ------------------------------------------------------------------
     def _parse_with_rules(
-        self, text: str, devices: list[dict[str, Any]]
+        self, text: str, devices: list[dict[str, Any]], states: dict[str, dict[str, Any]] | None = None
     ) -> Intent:
         """
         规则 fallback：针对常见指令做关键词匹配。
         用于无 LLM 环境下的离线测试，能力有限但能跑通闭环。
         """
+        states = states or {}
         target = _pick_device(text, devices)
         device_id = target.get("id") if target else None
 
@@ -126,12 +140,14 @@ class IntentParser:
             return Intent(device_id, _first_match(actions, ["turn_off", "off", "power_off"]),
                           {"power": "off"}, text)
 
-        # 亮度
-        if percent is not None or _has_any(text, ["亮度", "调亮", "调暗", "变亮", "变暗"]):
-            value = percent if percent is not None else 50
-            if _has_any(text, ["调暗", "变暗"]):
+        # 亮度（相对指令用当前状态）
+        if percent is not None or _has_any(text, ["亮度", "调亮", "调暗", "变亮", "变暗", "再亮", "再暗", "更亮", "更暗", "亮一点", "暗一点"]):
+            # 优先用当前状态，其次用百分比，最后默认 50
+            current = _get_state(states, device_id, "brightness", 50)
+            value = percent if percent is not None else current
+            if _has_any(text, ["调暗", "变暗", "再暗", "更暗", "暗一点"]):
                 value = max(1, min(100, value - 20))
-            elif _has_any(text, ["调亮", "变亮"]):
+            elif _has_any(text, ["调亮", "变亮", "再亮", "更亮", "亮一点"]):
                 value = max(1, min(100, value + 20))
             return Intent(device_id, _first_match(actions, ["set_brightness", "brightness", "dim"]),
                           {"brightness": value}, text)
@@ -159,6 +175,28 @@ def _describe_devices(devices: list[dict[str, Any]]) -> str:
         actions = _collect_actions(d)
         lines.append(f"- id={d.get('id')}, name={d.get('name')}, type={d.get('type')}, actions={actions}")
     return "\n".join(lines) if lines else "（无设备）"
+
+
+def _describe_states(states: dict[str, dict[str, Any]]) -> str:
+    """把设备状态描述成文本，供 LLM 理解上下文。"""
+    if not states:
+        return "（无状态信息）"
+    lines = []
+    for device_id, state in states.items():
+        lines.append(f"- {device_id}: {state}")
+    return "\n".join(lines)
+
+
+def _get_state(
+    states: dict[str, dict[str, Any]],
+    device_id: str | None,
+    key: str,
+    default: Any,
+) -> Any:
+    """从状态字典里取某个设备的某个属性值，缺省返回 default。"""
+    if device_id and device_id in states:
+        return states[device_id].get(key, default)
+    return default
 
 
 def _collect_actions(device: dict[str, Any] | None) -> list[str]:
