@@ -85,3 +85,13 @@ class VirtualHub:
 
     def list_devices(self) -> list[str]:
         return list(self.devices.keys())
+
+    def get_all_states(self) -> dict[str, dict[str, Any]]:
+        """导出所有设备状态 {device_id: state}，用于持久化。"""
+        return {device_id: dev.get_state() for device_id, dev in self.devices.items()}
+
+    def restore_states(self, states: dict[str, dict[str, Any]]) -> None:
+        """从持久化数据恢复所有设备状态。"""
+        for device_id, state in states.items():
+            if device_id in self.devices:
+                self.devices[device_id].state.update(state)
