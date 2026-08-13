@@ -63,7 +63,7 @@ pip install -r requirements.txt
 python scripts/run_web.py
 ```
 
-浏览器打开 http://127.0.0.1:5000，粘贴说明书，编译并导出设备协议 JSON。
+浏览器打开 http://127.0.0.1:5000，粘贴说明书，编译并查看/复制设备协议 JSON。
 
 **方式 B：命令行**
 
@@ -156,7 +156,7 @@ devicemind/
 
 - [x] **说明书编译**：LLM 读说明书生成设备协议 JSON
 - [x] **试运行验证**：编译纠错闭环 + 参数边界校验
-- [x] **Web UI**：浏览器编译并导出协议 JSON
+- [x] **Web UI**：浏览器编译并查看协议 JSON
 - [x] **HA 集成骨架**：light / switch / sensor 平台 + UI 配置（config flow）
 - [ ] **HA 集成完善**：climate / vacuum 平台、传感器状态回传（MQTT 订阅）
 - [ ] **设备知识库共享**：社区共建"说明书 → 协议"映射库
