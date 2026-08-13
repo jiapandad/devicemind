@@ -9,9 +9,10 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "src"))
 
 from devicemind.schema import validate_device  # noqa: E402
 from devicemind.llm import extract_json  # noqa: E402
-from devicemind.runtime import build_command, match_action  # noqa: E402
+from devicemind.runtime import build_command, match_action, validate_params, ParamOutOfRangeError  # noqa: E402
 from devicemind.intent import IntentParser  # noqa: E402
 from devicemind.simulator import VirtualDevice, VirtualHub  # noqa: E402
+from devicemind.scene import SceneManager, Scene, SceneStep  # noqa: E402
 
 
 # 预置测试设备
@@ -136,3 +137,97 @@ def test_simulator_state_update():
     state = hub.send_command("lamp-01", build_command(device, "turn_on", {}))
     assert state["power"] == "on"
     assert len(vdev.history) == 2
+
+
+# ---------------------------------------------------------------------------
+# 参数边界校验（P0 安全）
+# ---------------------------------------------------------------------------
+def test_param_validation_in_range():
+    device = _sample_device()
+    cmd = build_command(device, "set_brightness", {"brightness": 50})
+    assert cmd.payload == {"brightness": 50}
+
+
+def test_param_validation_out_of_range():
+    device = _sample_device()
+    try:
+        build_command(device, "set_brightness", {"brightness": 200})
+        assert False, "应拦截越界参数"
+    except ParamOutOfRangeError:
+        pass
+
+
+# ---------------------------------------------------------------------------
+# 意图上下文记忆（P1）
+# ---------------------------------------------------------------------------
+def test_intent_context_relative():
+    lamp = _sample_device()
+    parser = IntentParser()
+    # 有状态 brightness=70，"再暗一点" -> 50
+    intent = parser._parse_with_rules("再暗一点", [lamp], {"lamp-01": {"brightness": 70}})
+    assert intent.params == {"brightness": 50}
+
+
+def test_intent_context_absolute_priority():
+    lamp = _sample_device()
+    parser = IntentParser()
+    # 明确百分比优先于上下文
+    intent = parser._parse_with_rules("调到80%", [lamp], {"lamp-01": {"brightness": 30}})
+    assert intent.params == {"brightness": 80}
+
+
+# ---------------------------------------------------------------------------
+# 场景编排（P1）
+# ---------------------------------------------------------------------------
+def _climate_device():
+    return {
+        "id": "ac-01",
+        "type": "climate",
+        "name": "空调",
+        "capabilities": [
+            {"name": "power", "properties": {},
+             "actions": [{"name": "turn_on", "params": {}}, {"name": "turn_off", "params": {}}]},
+            {"name": "temperature", "properties": {"temperature": {"min": 16, "max": 30}},
+             "actions": [{"name": "set_temperature", "params": {}}]},
+        ],
+        "control": {"protocol": "mqtt", "commands": {
+            "turn_on": {"topic": "t/ac", "payload": {"power": "on"}},
+            "turn_off": {"topic": "t/ac", "payload": {"power": "off"}},
+            "set_temperature": {"topic": "t/ac", "payload": {"temperature": 26}},
+        }},
+    }
+
+
+def test_scene_trigger_multi_device():
+    lamp = _sample_device()
+    ac = _climate_device()
+    hub = VirtualHub()
+    hub.register(VirtualDevice("lamp-01", "灯", {"power": "off"}))
+    hub.register(VirtualDevice("ac-01", "空调", {"power": "off"}))
+
+    mgr = SceneManager()
+    mgr.add(Scene(name="回家模式", steps=[
+        SceneStep("lamp-01", "turn_on", {}),
+        SceneStep("ac-01", "set_temperature", {"temperature": 26}),
+    ]))
+
+    results = mgr.trigger("回家模式", {"lamp-01": lamp, "ac-01": ac}, hub)
+    assert len(results) == 2
+    assert hub.get("lamp-01").get_state()["power"] == "on"
+    assert hub.get("ac-01").get_state()["temperature"] == 26
+
+
+def test_scene_missing_device_tolerated():
+    lamp = _sample_device()
+    hub = VirtualHub()
+    hub.register(VirtualDevice("lamp-01", "灯", {"power": "off"}))
+
+    mgr = SceneManager()
+    mgr.add(Scene(name="测试", steps=[
+        SceneStep("lamp-01", "turn_on", {}),
+        SceneStep("ghost-01", "turn_off", {}),
+    ]))
+
+    results = mgr.trigger("测试", {"lamp-01": lamp}, hub)
+    assert "error" in results[1]  # 第二个设备不存在，容错记录 error
+    assert hub.get("lamp-01").get_state()["power"] == "on"
