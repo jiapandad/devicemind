@@ -1,0 +1,110 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>DeviceMind · 设备操作系统</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <header class="topbar">
+    <div class="brand">
+      <span class="logo">🧠</span>
+      <div class="brand-text">
+        <h1>DeviceMind</h1>
+        <span class="tagline">设备世界的操作系统 · 让任何设备会自我介绍</span>
+      </div>
+    </div>
+    <div class="topbar-right">
+      <span class="dot" id="status-dot"></span>
+      <span id="status-text">连接中…</span>
+    </div>
+  </header>
+
+  <nav class="tabs" id="tabs">
+    <button class="tab active" data-tab="devices">设备</button>
+    <button class="tab" data-tab="add">添加设备</button>
+    <button class="tab" data-tab="scenes">场景</button>
+    <button class="tab" data-tab="automation">自动化</button>
+    <button class="tab" data-tab="linkage">联动</button>
+  </nav>
+
+  <main>
+    <!-- 设备 -->
+    <section id="tab-devices" class="tab-panel active">
+      <div class="panel-head">
+        <h2>我的设备</h2>
+        <span class="muted">说人话控制，或点按钮直接操作</span>
+      </div>
+      <div id="devices-grid" class="devices-grid"></div>
+    </section>
+
+    <!-- 添加设备 -->
+    <section id="tab-add" class="tab-panel">
+      <div class="panel-head">
+        <h2>添加设备</h2>
+        <span class="muted">粘贴说明书，让 AI 读懂它</span>
+      </div>
+      <div class="add-wrap">
+        <div class="field">
+          <label>设备名称（可选，帮助 AI 定位）</label>
+          <input id="name-hint" type="text" placeholder="如：格力空调">
+        </div>
+        <div class="field">
+          <label>设备 ID（可选，留空自动生成）</label>
+          <input id="device-id" type="text" placeholder="如：ac-02">
+        </div>
+        <div class="field">
+          <label>说明书内容</label>
+          <textarea id="manual" rows="8" placeholder="把设备说明书的文字粘贴到这里…"></textarea>
+        </div>
+        <div class="field">
+          <label>或选择一份示例说明书</label>
+          <div class="samples" id="samples"></div>
+        </div>
+        <button class="btn primary" id="btn-add">🔍 编译并接入设备</button>
+        <div id="add-result" class="add-result"></div>
+      </div>
+    </section>
+
+    <!-- 场景 -->
+    <section id="tab-scenes" class="tab-panel">
+      <div class="panel-head">
+        <h2>场景</h2>
+        <span class="muted">一句话，联动整个家</span>
+      </div>
+      <div id="scenes-grid" class="scenes-grid"></div>
+    </section>
+
+    <!-- 自动化 -->
+    <section id="tab-automation" class="tab-panel">
+      <div class="panel-head">
+        <h2>自动化规则</h2>
+        <span class="muted">感知环境，自动服务</span>
+      </div>
+      <div class="sim-buttons">
+        <span class="muted">模拟环境变化：</span>
+        <button class="btn small" data-sim='{"weather":{"rain":true}}'>🌧 开始下雨</button>
+        <button class="btn small" data-sim='{"weather":{"temp":5}}'>❄ 降温</button>
+        <button class="btn small" data-sim='{"weather":{"aqi":200}}'>😷 雾霾</button>
+        <button class="btn small" data-sim='{"weather":{"motion":true}}'>🚶 有人移动</button>
+        <button class="btn small" data-sim='{"time":{"hour":23}}'>🌙 深夜</button>
+        <button class="btn small ghost" id="btn-reset">↺ 重置触发</button>
+      </div>
+      <div id="automations-list" class="automations-list"></div>
+    </section>
+
+    <!-- 联动 -->
+    <section id="tab-linkage" class="tab-panel">
+      <div class="panel-head">
+        <h2>设备联动</h2>
+        <span class="muted">新设备接入时自动发现的联动关系</span>
+      </div>
+      <div id="linkages-list" class="linkages-list"></div>
+    </section>
+  </main>
+
+  <div id="toast" class="toast"></div>
+  <script src="app.js"></script>
+</body>
+</html>
