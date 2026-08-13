@@ -31,8 +31,20 @@ from .const import DEFAULT_DEVICES_DIR, DOMAIN, TYPE_TO_PLATFORM
 
 _LOGGER = logging.getLogger(__name__)
 
-# 当前已实现的平台（其余类型后续按需补齐）
-SUPPORTED_PLATFORMS = {"light", "switch", "sensor"}
+# 当前已实现的平台
+SUPPORTED_PLATFORMS = {
+    "light",
+    "switch",
+    "sensor",
+    "climate",
+    "lock",
+    "camera",
+    "vacuum",
+    "media_player",
+    "cover",
+    "fan",
+    "humidifier",
+}
 
 
 def _resolve_devices_dir(config_dir: str, devices_dir: str) -> str:

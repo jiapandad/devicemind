@@ -33,7 +33,7 @@ DeviceMind 的思路是：**让 AI 读说明书，把"人肉写 adapter"变成"�
 | 参数边界校验 | 用设备 min/max/enum 拦截越界指令（如"空调 100 度"） |
 | PDF/OCR | 文本型 + 扫描型说明书都能读 |
 | 编译缓存 | 相同说明书不重复编译，按内容 hash 自动失效 |
-| HA 集成 | 通用集成读取协议 JSON，自动注册为 HA entity，支持 UI 配置（config flow） |
+| HA 集成 | 通用集成读取协议 JSON，覆盖 11 类设备（灯/开关/空调/门锁/扫地机/影音/窗帘/风扇/加湿器/摄像头/传感器），支持 UI 配置（config flow） |
 | Web UI | 浏览器贴说明书，编译并查看/复制协议 JSON |
 | CI | GitHub Actions 自动跑 pytest + ruff（Python 3.10/3.11/3.12） |
 
@@ -127,9 +127,17 @@ devicemind/
 │   ├── const.py              # 类型 -> 平台映射
 │   ├── runtime.py            # 协议命令构建（runtime 的 HA 侧镜像）
 │   ├── __init__.py           # 扫描协议 JSON，分发到平台
-│   ├── light.py              # light 平台（含亮度调节）
-│   ├── switch.py             # switch 平台
-│   └── sensor.py             # sensor 平台
+│   ├── light.py              # 灯（开关/亮度/颜色/色温）
+│   ├── switch.py             # 开关
+│   ├── climate.py            # 空调（HVAC 模式/温度/风速）
+│   ├── lock.py               # 门锁
+│   ├── vacuum.py             # 扫地机
+│   ├── cover.py              # 窗帘/卷帘
+│   ├── fan.py                # 风扇
+│   ├── humidifier.py         # 加湿器
+│   ├── media_player.py       # 影音（音量/开关）
+│   ├── camera.py             # 摄像头
+│   └── sensor.py             # 传感器
 ├── web/                      # Web UI 前端
 ├── scripts/
 │   ├── run_web.py            # 启动 Web UI
@@ -157,8 +165,9 @@ devicemind/
 - [x] **说明书编译**：LLM 读说明书生成设备协议 JSON
 - [x] **试运行验证**：编译纠错闭环 + 参数边界校验
 - [x] **Web UI**：浏览器编译并查看协议 JSON
-- [x] **HA 集成骨架**：light / switch / sensor 平台 + UI 配置（config flow）
-- [ ] **HA 集成完善**：climate / vacuum 平台、传感器状态回传（MQTT 订阅）
+- [x] **HA 集成**：11 类设备平台 + UI 配置（config flow）
+- [ ] **状态回传闭环**：传感器读数、设备真实状态（MQTT 订阅）
+- [ ] **HTTP 协议适配**：支持走 HTTP 回调的设备
 - [ ] **设备知识库共享**：社区共建"说明书 → 协议"映射库
 
 ## 许可证

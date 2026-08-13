@@ -27,6 +27,9 @@ DEVICE_TYPES = [
     "camera",     # 摄像头
     "vacuum",     # 扫地机器人
     "media",      # 影音设备
+    "cover",      # 窗帘/卷帘/百叶
+    "fan",        # 风扇
+    "humidifier", # 加湿器
     "other",      # 其他
 ]
 
@@ -47,6 +50,8 @@ CAPABILITIES = [
     "power_meter",     # 功率/电量
     "battery",         # 电池
     "volume",          # 音量
+    "position",        # 开合度（窗帘 0-100）
+    "target_humidity", # 目标湿度（加湿器）
     "other",
 ]
 
@@ -65,6 +70,11 @@ ACTIONS = [
     "lock",             # 上锁
     "unlock",           # 解锁
     "set_volume",       # 设置音量
+    "open",             # 打开（窗帘/卷帘）
+    "close",            # 关闭（窗帘/卷帘）
+    "stop",             # 停止（窗帘/扫地机）
+    "set_position",     # 设置开合度
+    "set_humidity",     # 设置目标湿度
     "get_state",        # 查询状态（只读）
     "get_battery",      # 查询电量（只读）
     "other",            # 其他

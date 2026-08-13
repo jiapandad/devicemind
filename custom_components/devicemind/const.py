@@ -16,7 +16,11 @@ TYPE_TO_PLATFORM = {
     "climate": "climate",
     "sensor": "sensor",
     "lock": "lock",
+    "camera": "camera",
     "vacuum": "vacuum",
     "media": "media_player",
+    "cover": "cover",
+    "fan": "fan",
+    "humidifier": "humidifier",
     "other": "switch",  # 兜底：无明确类型时按开关处理
 }
