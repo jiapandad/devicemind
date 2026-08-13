@@ -50,6 +50,7 @@ class DeviceCompiler:
         manual_text: str,
         device_id: str,
         name_hint: str | None = None,
+        feedback: str | None = None,
     ) -> dict[str, Any]:
         """
         将说明书文本编译为设备描述 JSON。
@@ -58,6 +59,7 @@ class DeviceCompiler:
             manual_text: 说明书全文（文本形式，PDF 需先转文本）
             device_id: 设备唯一标识
             name_hint: 可选，设备名提示（帮助 LLM 定位）
+            feedback: 可选，上次编译的错误信息，用于纠错重编译
 
         返回:
             设备描述 dict
@@ -65,7 +67,7 @@ class DeviceCompiler:
         if not manual_text or not manual_text.strip():
             raise ValueError("说明书内容为空")
 
-        user_prompt = self._build_prompt(manual_text, device_id, name_hint)
+        user_prompt = self._build_prompt(manual_text, device_id, name_hint, feedback)
 
         last_error: Exception | None = None
         for attempt in range(1, self.max_retries + 1):
@@ -102,10 +104,12 @@ class DeviceCompiler:
         manual_text: str,
         device_id: str,
         name_hint: str | None,
+        feedback: str | None = None,
     ) -> str:
         schema = dump_schema_prompt()
         example = dump_example_prompt()
         hint = f"\n设备名称提示：{name_hint}" if name_hint else ""
+        feedback_text = f"\n【上次编译错误，请务必修正】{feedback}" if feedback else ""
         return f"""请将下面的设备说明书编译成设备描述 JSON。
 
 设备 ID：{device_id}
@@ -116,6 +120,7 @@ class DeviceCompiler:
 
 JSON Schema（必须严格遵守）：
 {schema}
+{feedback_text}
 
 设备说明书全文：
 --- 开始 ---
