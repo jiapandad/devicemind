@@ -14,6 +14,7 @@ from devicemind.intent import IntentParser  # noqa: E402
 from devicemind.simulator import VirtualDevice, VirtualHub  # noqa: E402
 from devicemind.scene import SceneManager, Scene, SceneStep  # noqa: E402
 from devicemind.verify import verify_device, pick_verify_action  # noqa: E402
+from devicemind.automation import AutomationEngine, AutomationRule, weather, time  # noqa: E402
 from devicemind import storage  # noqa: E402
 
 
@@ -318,3 +319,53 @@ def test_intent_circuit_breaker():
     calls = client.calls
     parser.parse("调到50%", [lamp])
     assert client.calls == calls
+
+
+# ---------------------------------------------------------------------------
+# 自动化规则引擎（环境感知）
+# ---------------------------------------------------------------------------
+def test_automation_edge_trigger():
+    """边沿触发：条件从 False 变 True 只触发一次，持续满足不重复触发。"""
+    lamp = _sample_device()
+    hub = VirtualHub()
+    hub.register(VirtualDevice("lamp-01", "灯", {"power": "off"}))
+
+    engine = AutomationEngine()
+    engine.add_rule(AutomationRule("深夜关灯", time("hour", "==", 23),
+                                   [SceneStep("lamp-01", "turn_off", {})]))
+
+    devices = {"lamp-01": lamp}
+
+    # 白天不触发
+    assert engine.tick({"time": {"hour": 9}}, devices, hub) == []
+    # 23 点触发一次
+    fired = engine.tick({"time": {"hour": 23}}, devices, hub)
+    assert len(fired) == 1
+    # 还是 23 点，不重复触发（边沿）
+    assert engine.tick({"time": {"hour": 23}}, devices, hub) == []
+    # 回到白天再触发才重新计数
+    engine.tick({"time": {"hour": 9}}, devices, hub)
+    assert len(engine.tick({"time": {"hour": 23}}, devices, hub)) == 1
+
+
+def test_automation_weather_trigger():
+    heater = {
+        "id": "heater-01", "type": "other", "name": "暖气",
+        "capabilities": [{"name": "power", "properties": {},
+                          "actions": [{"name": "turn_on", "params": {}}]}],
+        "control": {"protocol": "mqtt", "commands": {
+            "turn_on": {"topic": "t/h", "payload": {"power": "on"}}}},
+    }
+    hub = VirtualHub()
+    hub.register(VirtualDevice("heater-01", "暖气", {"power": "off"}))
+
+    engine = AutomationEngine()
+    engine.add_rule(AutomationRule("降温开暖气", weather("temp", "<", 10),
+                                   [SceneStep("heater-01", "turn_on", {})]))
+
+    devices = {"heater-01": heater}
+    # 温度 15 不触发
+    assert engine.tick({"weather": {"temp": 15}}, devices, hub) == []
+    # 温度 5 触发
+    assert len(engine.tick({"weather": {"temp": 5}}, devices, hub)) == 1
+    assert hub.get("heater-01").get_state()["power"] == "on"
