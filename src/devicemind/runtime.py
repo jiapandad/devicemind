@@ -39,6 +39,10 @@ class ActionNotFoundError(Exception):
     """设备不支持该动作。"""
 
 
+class ParamOutOfRangeError(Exception):
+    """参数超出设备允许范围。"""
+
+
 def _normalize(name: str) -> str:
     """规范化名称：小写 + 去下划线/连字符，用于模糊匹配。"""
     return re.sub(r"[^a-z0-9]", "", (name or "").lower())
@@ -83,6 +87,60 @@ def match_action(device: dict[str, Any], action: str) -> str:
     )
 
 
+def validate_params(
+    device: dict[str, Any],
+    action: str,
+    params: dict[str, Any],
+) -> None:
+    """
+    校验参数是否在设备允许范围内，越界抛 ParamOutOfRangeError。
+
+    用设备 capabilities 里 properties 的 min/max 做边界校验，
+    拦截危险指令（如"空调调到 100 度"而范围是 16-30）。
+    """
+    if not params:
+        return
+
+    canonical_action = match_action(device, action)
+
+    # 找到包含该动作的 capability
+    for cap in device.get("capabilities", []):
+        if not isinstance(cap, dict):
+            continue
+        action_names = [
+            a.get("name") for a in cap.get("actions", []) if isinstance(a, dict)
+        ]
+        if canonical_action not in action_names:
+            continue
+
+        props = cap.get("properties", {})
+        if not isinstance(props, dict):
+            return
+
+        for key, value in params.items():
+            spec = props.get(key)
+            if not isinstance(spec, dict):
+                continue
+            if "min" not in spec and "max" not in spec:
+                continue
+
+            # 尝试数值比较（非数值参数跳过）
+            try:
+                v = float(value)
+            except (TypeError, ValueError):
+                continue
+
+            if "min" in spec and v < float(spec["min"]):
+                raise ParamOutOfRangeError(
+                    f"参数 {key}={value} 低于下限 {spec['min']}"
+                )
+            if "max" in spec and v > float(spec["max"]):
+                raise ParamOutOfRangeError(
+                    f"参数 {key}={value} 超过上限 {spec['max']}"
+                )
+        return
+
+
 def build_command(
     device: dict[str, Any],
     action: str,
@@ -103,6 +161,9 @@ def build_command(
 
     # 规范化动作名（匹配设备声明）
     canonical_action = match_action(device, action)
+
+    # 参数边界校验（拦截越界指令）
+    validate_params(device, canonical_action, params)
 
     control = device.get("control", {})
     commands = control.get("commands", {})
