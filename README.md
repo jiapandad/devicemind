@@ -42,6 +42,7 @@ DeviceMind 的思路是：**让 AI 自己读说明书、自己理解设备、自
 | 场景编排 | "回家模式"联动多设备（开灯+开空调+关窗帘） |
 | 持久化 | 设备状态、场景配置落盘，重启不丢 |
 | 熔断降级 | LLM 挂了自动回退规则匹配，连续失败后熔断不再空等 |
+| 环境自动化 | 天气/时间/设备事件触发自动控制（下雨关窗、降温开暖气） |
 | PDF/OCR | 文本型 + 扫描型说明书都能读 |
 
 ## 快速开始
@@ -137,11 +138,13 @@ devicemind/
 │   ├── simulator.py    # 虚拟设备模拟器（无硬件也能跑）
 │   ├── ocr.py          # 扫描版 PDF 识别（pymupdf + RapidOCR）
 │   ├── scene.py        # 场景编排（多设备联动）
+│   ├── automation.py   # 自动化规则引擎（环境感知自动控制）
 │   ├── verify.py       # 编译试运行验证闭环
 │   └── storage.py      # 持久化存储（状态/场景落盘）
 ├── scripts/
 │   ├── phase0_demo.py  # Phase 0 验证脚本（编译期，支持 txt/pdf）
 │   ├── demo_cli.py     # Phase 1 交互演示（完整闭环）
+│   ├── automation_demo.py  # 环境自动化演示（下雨关窗等）
 │   └── batch_test.py   # 泛化批量测试（多设备类型）
 ├── examples/
 │   └── sample_*.txt    # 8 类设备说明书样例
