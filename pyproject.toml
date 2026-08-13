@@ -1,0 +1,27 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "devicemind"
+version = "0.1.0"
+description = "设备世界的操作系统 —— 用 LLM 读设备说明书，自动编译成结构化协议"
+readme = "README.md"
+requires-python = ">=3.10"
+license = { text = "Apache-2.0" }
+authors = [{ name = "DeviceMind Contributors" }]
+keywords = ["iot", "smart-home", "llm", "ai-agent", "device-os"]
+dependencies = [
+    "openai>=1.0.0",
+    "requests>=2.31.0",
+]
+
+[project.optional-dependencies]
+pdf = ["pypdf>=4.0.0"]
+dev = ["pytest>=7.0"]
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
