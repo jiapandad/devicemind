@@ -5,7 +5,6 @@ pypdf>=4.0.0
 # Web UI（浏览器界面，让普通用户使用）
 flask>=3.0.0
 
-# OCR 支持（扫描版 PDF 说明书，可选）
-# 安装：pip install rapidocr-onnxruntime pymupdf
-rapidocr-onnxruntime>=1.2.0
-pymupdf>=1.24.0
+# 可选依赖（按需安装，避免基础用户拖重依赖）：
+#   扫描版 PDF 说明书（OCR）：pip install rapidocr-onnxruntime pymupdf
+#   真实 MQTT 设备：         pip install paho-mqtt

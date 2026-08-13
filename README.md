@@ -1,116 +1,76 @@
 # DeviceMind
 
-> 设备世界的操作系统 —— 让任何设备"会自我介绍"，让用户"说人话就能控制"。
+> 贴一份设备说明书，生成 Home Assistant 设备协议。
 
-DeviceMind 是一个跑在本地 Hub 上的 **AI 设备运行时**。它解决一个困扰智能家居多年的问题：**设备碎片化**。
+DeviceMind 是 **Home Assistant 的设备接入增强层**。它解决 HA 生态一个长期痛点：**接入新设备要写 integration、写 YAML**。
 
-核心创新：**用 LLM 读设备说明书，自动把设备"编译"成结构化协议，从此不需要人工写 adapter。**
+核心创新：**用 LLM 读设备说明书，自动把设备"编译"成结构化协议 JSON**，由 HA 集成直接消费 —— 从此接入一个设备，只需要一份说明书，不再需要人工写 adapter。
 
 ## 为什么做这个
 
-现在的智能家居有三大痛点：
+Home Assistant 有 1000+ 个 integration，但每一个都是人肉写的；Matter 统一了协议，但要厂商配合认证。现实中大量设备（尤其是国产智能设备）HA 根本不支持，用户只能在论坛发帖求"XX 设备怎么接入"。
 
-| 痛点 | 现状 |
-|------|------|
-| 设备不互通 | 米家、涂鸦、HomeKit 各自为政 |
-| 接入要写代码 | Home Assistant 要写 YAML，Matter 要厂商配合 |
-| 规则要人写 | "回家模式"要手动配置每一条联动 |
+DeviceMind 的思路是：**让 AI 读说明书，把"人肉写 adapter"变成"丢说明书"**。
 
-DeviceMind 的思路是：**让 AI 自己读说明书、自己理解设备、自己编排控制。** 用户只需要说一句"我回家了"。
-
-## 核心思路
+## 工作流
 
 ```
-设备说明书 ──编译期(一次)──▶ LLM 理解 ──▶ 编译成 JSON 缓存
-                                       ▲            │
-                                       │            ▼
-                           执行出错/用户纠正   运行期(一万次) 直接查 JSON
+设备说明书 ──(一次)──▶ LLM 编译 ──▶ 设备协议 JSON ──▶ 放入 HA 配置目录 ──▶ HA 自动识别设备
+                        │
+                        └─ 试运行验证出错 / 用户纠正时，回读说明书重编译
 ```
 
-- **编译期**：新设备接入时，LLM 读一次说明书，生成设备描述 JSON，缓存起来
-- **运行期**：每次控制设备，直接查 JSON，毫秒级响应，不再调用 LLM
-- **自我纠错**：执行出错或用户纠正时，回读说明书重新编译
+- **编译期**：LLM 读一次说明书，生成设备协议 JSON，缓存复用
+- **运行期**：HA 集成直接消费 JSON 发控制指令，不碰 LLM
+- **自我纠错**：试运行验证 topic 错误时，反馈给 LLM 纠错重编译
 
 ## 核心特性
 
 | 特性 | 说明 |
 |------|------|
-| 说明书编译 | LLM 读说明书 → 结构化设备协议（3B 模型 100% 能力提取） |
+| 说明书编译 | LLM 读说明书 → 结构化设备协议 JSON（3B 模型即可） |
 | 试运行验证 | 编译后发试探指令验证 topic，错误则反馈纠错重编译 |
-| 参数边界校验 | 用设备 min/max 拦截越界指令（如"空调 100 度"） |
-| 意图上下文记忆 | 支持"再暗一点"等依赖当前状态的相对指令 |
-| 场景编排 | "回家模式"联动多设备（开灯+开空调+关窗帘） |
-| 持久化 | 设备状态、场景配置落盘，重启不丢 |
-| 熔断降级 | LLM 挂了自动回退规则匹配，连续失败后熔断不再空等 |
-| 环境自动化 | 天气/时间/设备事件触发自动控制（下雨关窗、降温开暖气） |
-| 设备自动联动 | 新设备接入自动组网（雨水传感器自动关联关窗） |
+| 参数边界校验 | 用设备 min/max/enum 拦截越界指令（如"空调 100 度"） |
 | PDF/OCR | 文本型 + 扫描型说明书都能读 |
-| Web UI | 浏览器可视化界面，普通用户点一点就能用 |
+| 编译缓存 | 相同说明书不重复编译，按内容 hash 自动失效 |
+| HA 集成 | 通用集成读取协议 JSON，自动注册为 HA entity，支持 UI 配置（config flow） |
+| Web UI | 浏览器贴说明书，编译并导出协议 JSON |
 
 ## 快速开始
 
-### 1. 启动 Web UI（推荐，最直观）
+### 1. 配置 LLM 后端（二选一）
+
+**方案 A：本地 Ollama（隐私优先）**
 
 ```bash
-# 安装依赖（含 Web UI）
-pip install -r requirements.txt
-
-# 启动网页界面
-python scripts/run_web.py
-```
-
-然后浏览器打开 **http://127.0.0.1:5000**，就能看到：
-
-- **设备页**：预置了 8 个示例设备，点开关按钮、拖亮度滑条、或直接说"调到 50%"就能控制
-- **添加设备页**：粘贴设备说明书，LLM 自动编译接入（需配置 LLM 后端）
-- **场景页**：一键触发"回家模式""睡眠模式"
-- **自动化页**：点"开始下雨"等按钮，模拟环境变化触发自动控制
-- **联动页**：新设备接入后自动发现的联动关系
-
-### 2. 配置 LLM 后端（添加设备时需要，二选一）
-
-**方案 A：本地 Ollama（隐私优先，推荐 qwen2.5:3b）**
-
-```bash
-# 安装 Ollama 后（3b 仅 1.9GB，实测能力提取 100%，7b 更重无必要）
 ollama pull qwen2.5:3b
 export DEVICEMIND_LLM_PROVIDER=ollama
 ```
 
-**方案 B：云端 API（推荐 DeepSeek，便宜）**
+**方案 B：云端 API（DeepSeek 便宜）**
 
 ```bash
 export DEEPSEEK_API_KEY=你的key
 ```
 
-### 3. 运行 Phase 1 交互演示（无需 LLM 也能跑）
+### 2. 编译设备说明书
+
+**方式 A：Web UI**
 
 ```bash
-# 完整闭环：意图 → 控制虚拟设备（用预置示例设备，无需 LLM）
-python scripts/demo_cli.py --demo
+pip install -r requirements.txt
+python scripts/run_web.py
 ```
 
-进入交互后，输入自然语言指令即可：
+浏览器打开 http://127.0.0.1:5000，粘贴说明书，编译并导出设备协议 JSON。
 
-```
-> 打开
-  [意图] action=turn_on, params={'power': 'on'}
-  [指令] mqtt smarthome/lamp01/set -> {'power': 'on'}
-  [状态] {'power': 'on'}
-
-> 调到50%
-  [意图] action=set_brightness, params={'brightness': 50}
-  [指令] mqtt smarthome/lamp01/set -> {'brightness': 50}
-  [状态] {'power': 'on', 'brightness': 50}
-```
-
-### 4. 运行 Phase 0 验证（编译期，需 LLM）
+**方式 B：命令行**
 
 ```bash
 python scripts/phase0_demo.py examples/sample_light.txt --id lamp-01
 ```
 
-输出示例（编译后的设备 JSON）：
+编译输出的设备协议 JSON：
 
 ```json
 {
@@ -138,38 +98,44 @@ python scripts/phase0_demo.py examples/sample_light.txt --id lamp-01
 }
 ```
 
+### 3. 导入 Home Assistant
+
+1. 把 `custom_components/devicemind/` 复制到 HA 的 `config/custom_components/` 目录
+2. 重启 HA
+3. 在「设置 → 设备与服务 → 添加集成」里搜索 **DeviceMind**，配置设备协议 JSON 目录（默认 `config/devicemind/`）
+4. 把编译好的设备协议 JSON 放进该目录
+5. 重载集成，设备自动成为 HA entity
+
+> 也可以走 YAML 配置（兼容旧方式）：在 `configuration.yaml` 里写 `devicemind: {devices_dir: devicemind}`
+
 ## 项目结构
 
 ```
 devicemind/
-├── src/devicemind/
-│   ├── __init__.py
-│   ├── schema.py       # 统一设备模型（核心 Schema）
-│   ├── llm.py          # LLM 后端封装（OpenAI 兼容 + Ollama）
-│   ├── compiler.py     # 编译期核心：说明书 -> 设备 JSON
-│   ├── intent.py       # 意图理解：自然语言 -> 结构化意图
-│   ├── runtime.py      # 运行期核心：动作 -> 控制指令
-│   ├── simulator.py    # 虚拟设备模拟器（无硬件也能跑）
-│   ├── ocr.py          # 扫描版 PDF 识别（pymupdf + RapidOCR）
-│   ├── scene.py        # 场景编排（多设备联动）
-│   ├── automation.py   # 自动化规则引擎（环境感知自动控制）
-│   ├── linkage.py      # 设备联动自动发现（新设备自动组网）
-│   ├── verify.py       # 编译试运行验证闭环
-│   ├── storage.py      # 持久化存储（状态/场景落盘）
-│   └── webapp.py       # Web UI 后端（Flask REST API）
-├── web/                # Web UI 前端（浏览器界面）
-│   ├── index.html
-│   ├── style.css
-│   └── app.js
+├── src/devicemind/           # 编译器（生成设备协议 JSON）
+│   ├── schema.py             # 统一设备模型（核心 Schema）
+│   ├── llm.py                # LLM 后端封装（OpenAI 兼容 + Ollama）
+│   ├── compiler.py           # 说明书 -> 设备协议 JSON（含缓存）
+│   ├── verify.py             # 编译试运行验证闭环
+│   ├── ocr.py                # 扫描版 PDF 识别
+│   ├── runtime.py            # 动作 -> 控制指令（供 HA 集成复用）
+│   └── webapp.py             # Web UI 后端（编译工具）
+├── custom_components/devicemind/  # Home Assistant 集成
+│   ├── manifest.json
+│   ├── config_flow.py        # UI 配置流（添加集成）
+│   ├── const.py              # 类型 -> 平台映射
+│   ├── runtime.py            # 协议命令构建（runtime 的 HA 侧镜像）
+│   ├── __init__.py           # 扫描协议 JSON，分发到平台
+│   ├── light.py              # light 平台（含亮度调节）
+│   ├── switch.py             # switch 平台
+│   └── sensor.py             # sensor 平台
+├── web/                      # Web UI 前端
 ├── scripts/
-│   ├── run_web.py      # 启动 Web UI
-│   ├── phase0_demo.py  # Phase 0 验证脚本（编译期，支持 txt/pdf）
-│   ├── demo_cli.py     # Phase 1 交互演示（完整闭环）
-│   ├── automation_demo.py  # 环境自动化演示（下雨关窗等）
-│   ├── linkage_demo.py # 设备联动自动发现演示
-│   └── batch_test.py   # 泛化批量测试（多设备类型）
+│   ├── run_web.py            # 启动 Web UI
+│   ├── phase0_demo.py        # 命令行编译（支持 txt/pdf）
+│   └── batch_test.py         # 泛化批量测试
 ├── examples/
-│   └── sample_*.txt    # 8 类设备说明书样例
+│   └── sample_*.txt          # 设备说明书样例
 └── tests/
 ```
 
@@ -178,19 +144,17 @@ devicemind/
 | 格式 | 支持 | 说明 |
 |------|:---:|------|
 | 文本文件（.txt） | ✅ | 直接读取 |
-| 文本型 PDF | ✅ | pypdf 提取文字（Word 导出的） |
-| 扫描型 PDF | ✅ | OCR 识别（需安装 `rapidocr-onnxruntime pymupdf`） |
-
-扫描版 PDF 的处理链路：`PDF → 转图片 → RapidOCR 识别中文 → LLM 编译成设备 JSON`。
+| 文本型 PDF | ✅ | pypdf 提取文字 |
+| 扫描型 PDF | ✅ | OCR 识别（`pip install rapidocr-onnxruntime pymupdf`） |
 
 ## 路线图
 
-- [x] **Phase 0**：LLM 读说明书生成设备 JSON（3B 模型，能力提取 100%）
-- [x] **Phase 1**：完整闭环 —— 意图理解 + 场景编排 + 参数校验 + 试运行验证
-- [x] **Web UI**：浏览器可视化界面（设备控制/添加设备/场景/自动化/联动）
-- [ ] **Phase 2**：接入真实设备（MQTT，需实机测试）
-- [ ] **Phase 3**：开源社区 + 设备知识库共享
-- [ ] **Phase 4**：世界模型（预测式智能）
+- [x] **说明书编译**：LLM 读说明书生成设备协议 JSON
+- [x] **试运行验证**：编译纠错闭环 + 参数边界校验
+- [x] **Web UI**：浏览器编译并导出协议 JSON
+- [x] **HA 集成骨架**：light / switch / sensor 平台 + UI 配置（config flow）
+- [ ] **HA 集成完善**：climate / vacuum 平台、传感器状态回传（MQTT 订阅）
+- [ ] **设备知识库共享**：社区共建"说明书 → 协议"映射库
 
 ## 许可证
 

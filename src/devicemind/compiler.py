@@ -19,7 +19,7 @@ import os
 from typing import Any
 
 from devicemind.llm import LLMClient, extract_json
-from devicemind.schema import DEVICE_TYPES, dump_schema_prompt, dump_example_prompt, validate_device
+from devicemind.schema import dump_schema_prompt, dump_example_prompt, validate_device
 
 
 SYSTEM_PROMPT = """你是 DeviceMind 的设备编译器。你的任务是把设备说明书转换为结构化的设备描述 JSON。
@@ -188,3 +188,24 @@ def save_cache(device_id: str, device: dict[str, Any], manual_hash: str | None =
     payload = {"manual_hash": manual_hash, "device": device} if manual_hash else device
     with open(path, "w", encoding="utf-8") as f:
         json.dump(payload, f, ensure_ascii=False, indent=2)
+
+
+def list_cached() -> list[dict[str, Any]]:
+    """列出所有已编译缓存设备（按文件名排序）。"""
+    devices: list[dict[str, Any]] = []
+    for filename in sorted(os.listdir(cache_dir())):
+        if not filename.endswith(".json"):
+            continue
+        device = load_cached(filename[:-5])
+        if device:
+            devices.append(device)
+    return devices
+
+
+def delete_cached(device_id: str) -> bool:
+    """删除某个设备的编译缓存，返回是否删除成功。"""
+    path = os.path.join(cache_dir(), f"{device_id}.json")
+    if os.path.exists(path):
+        os.remove(path)
+        return True
+    return False

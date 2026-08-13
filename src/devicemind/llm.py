@@ -33,12 +33,16 @@ class LLMClient:
         api_key: str | None = None,
         model: str = "gpt-4o-mini",
         temperature: float = 0.1,
+        timeout: float = 60.0,
+        max_retries: int = 2,
     ) -> None:
         self.provider = provider  # "openai" 或 "ollama"
         self.base_url = base_url
         self.api_key = api_key
         self.model = model
         self.temperature = temperature
+        self.timeout = timeout
+        self.max_retries = max_retries
 
     # ------------------------------------------------------------------
     @classmethod
@@ -120,6 +124,8 @@ class LLMClient:
         client = OpenAI(
             api_key=self.api_key,
             base_url=self.base_url,
+            timeout=self.timeout,
+            max_retries=self.max_retries,
         )
 
         kwargs: dict[str, Any] = {
@@ -154,7 +160,7 @@ class LLMClient:
         }
 
         try:
-            resp = requests.post(url, json=payload, timeout=120)
+            resp = requests.post(url, json=payload, timeout=self.timeout)
             resp.raise_for_status()
             data = resp.json()
             return data.get("message", {}).get("content", "")
