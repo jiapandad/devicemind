@@ -24,6 +24,7 @@ class VirtualDevice:
     name: str
     state: dict[str, Any] = field(default_factory=dict)
     history: list[dict[str, Any]] = field(default_factory=list)
+    expected_topic: str | None = None  # 预期 topic，用于试运行验证编译是否正确
 
     def apply_command(self, command: Command) -> dict[str, Any]:
         """接收控制指令，更新状态，返回最新状态。"""
@@ -37,6 +38,17 @@ class VirtualDevice:
         }
         self.history.append(record)
         return dict(self.state)
+
+    def probe(self, command: Command) -> bool:
+        """
+        试运行试探：检查指令 topic 是否命中设备的预期 topic。
+
+        用于验证 LLM 编译出的 control 是否正确 —— 真实设备上，
+        发错 topic 设备不会响应，这里用 expected_topic 模拟同样的行为。
+        """
+        if self.expected_topic is None:
+            return True  # 无预期 topic，跳过验证
+        return command.topic == self.expected_topic
 
     def get_state(self) -> dict[str, Any]:
         return dict(self.state)
@@ -66,6 +78,10 @@ class VirtualHub:
     def send_command(self, device_id: str, command: Command) -> dict[str, Any]:
         """模拟向设备发送控制指令，返回最新状态。"""
         return self.get(device_id).apply_command(command)
+
+    def probe(self, device_id: str, command: Command) -> bool:
+        """试运行验证：发试探指令，检查 topic 是否命中设备预期。"""
+        return self.get(device_id).probe(command)
 
     def list_devices(self) -> list[str]:
         return list(self.devices.keys())
