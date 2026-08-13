@@ -45,16 +45,29 @@ DeviceMind 的思路是：**让 AI 自己读说明书、自己理解设备、自
 | 环境自动化 | 天气/时间/设备事件触发自动控制（下雨关窗、降温开暖气） |
 | 设备自动联动 | 新设备接入自动组网（雨水传感器自动关联关窗） |
 | PDF/OCR | 文本型 + 扫描型说明书都能读 |
+| Web UI | 浏览器可视化界面，普通用户点一点就能用 |
 
 ## 快速开始
 
-### 1. 安装依赖
+### 1. 启动 Web UI（推荐，最直观）
 
 ```bash
-pip install openai pypdf
+# 安装依赖（含 Web UI）
+pip install -r requirements.txt
+
+# 启动网页界面
+python scripts/run_web.py
 ```
 
-### 2. 配置 LLM 后端（二选一）
+然后浏览器打开 **http://127.0.0.1:5000**，就能看到：
+
+- **设备页**：预置了 8 个示例设备，点开关按钮、拖亮度滑条、或直接说"调到 50%"就能控制
+- **添加设备页**：粘贴设备说明书，LLM 自动编译接入（需配置 LLM 后端）
+- **场景页**：一键触发"回家模式""睡眠模式"
+- **自动化页**：点"开始下雨"等按钮，模拟环境变化触发自动控制
+- **联动页**：新设备接入后自动发现的联动关系
+
+### 2. 配置 LLM 后端（添加设备时需要，二选一）
 
 **方案 A：本地 Ollama（隐私优先，推荐 qwen2.5:3b）**
 
@@ -142,11 +155,18 @@ devicemind/
 │   ├── automation.py   # 自动化规则引擎（环境感知自动控制）
 │   ├── linkage.py      # 设备联动自动发现（新设备自动组网）
 │   ├── verify.py       # 编译试运行验证闭环
-│   └── storage.py      # 持久化存储（状态/场景落盘）
+│   ├── storage.py      # 持久化存储（状态/场景落盘）
+│   └── webapp.py       # Web UI 后端（Flask REST API）
+├── web/                # Web UI 前端（浏览器界面）
+│   ├── index.html
+│   ├── style.css
+│   └── app.js
 ├── scripts/
+│   ├── run_web.py      # 启动 Web UI
 │   ├── phase0_demo.py  # Phase 0 验证脚本（编译期，支持 txt/pdf）
 │   ├── demo_cli.py     # Phase 1 交互演示（完整闭环）
 │   ├── automation_demo.py  # 环境自动化演示（下雨关窗等）
+│   ├── linkage_demo.py # 设备联动自动发现演示
 │   └── batch_test.py   # 泛化批量测试（多设备类型）
 ├── examples/
 │   └── sample_*.txt    # 8 类设备说明书样例
@@ -167,6 +187,7 @@ devicemind/
 
 - [x] **Phase 0**：LLM 读说明书生成设备 JSON（3B 模型，能力提取 100%）
 - [x] **Phase 1**：完整闭环 —— 意图理解 + 场景编排 + 参数校验 + 试运行验证
+- [x] **Web UI**：浏览器可视化界面（设备控制/添加设备/场景/自动化/联动）
 - [ ] **Phase 2**：接入真实设备（MQTT，需实机测试）
 - [ ] **Phase 3**：开源社区 + 设备知识库共享
 - [ ] **Phase 4**：世界模型（预测式智能）
