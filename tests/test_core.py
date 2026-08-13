@@ -2,7 +2,10 @@
 
 from __future__ import annotations
 
+import json
+import os
 import sys
+import tempfile
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "src"))
@@ -14,8 +17,10 @@ from devicemind.intent import IntentParser  # noqa: E402
 from devicemind.simulator import VirtualDevice, VirtualHub  # noqa: E402
 from devicemind.scene import SceneManager, Scene, SceneStep  # noqa: E402
 from devicemind.verify import verify_device, pick_verify_action  # noqa: E402
-from devicemind.automation import AutomationEngine, AutomationRule, weather, time  # noqa: E402
+from devicemind.automation import AutomationEngine, AutomationRule, weather, time, trigger_to_dict, trigger_from_dict  # noqa: E402
 from devicemind.linkage import discover_linkages  # noqa: E402
+from devicemind.compiler import DeviceCompiler, load_cached, save_cache  # noqa: E402
+from devicemind.mqtt_hub import MqttHub  # noqa: E402
 from devicemind import storage  # noqa: E402
 
 
@@ -157,6 +162,42 @@ def test_param_validation_out_of_range():
     try:
         build_command(device, "set_brightness", {"brightness": 200})
         assert False, "应拦截越界参数"
+    except ParamOutOfRangeError:
+        pass
+
+
+# ---------------------------------------------------------------------------
+# 枚举参数校验（P0 安全）
+# ---------------------------------------------------------------------------
+def _mode_device():
+    return {
+        "id": "ac-01",
+        "type": "climate",
+        "name": "空调",
+        "capabilities": [
+            {"name": "power", "properties": {},
+             "actions": [{"name": "turn_on", "params": {}}]},
+            {"name": "mode", "properties": {"mode": {"type": "string", "enum": ["cool", "heat", "auto"]}},
+             "actions": [{"name": "set_mode", "params": {"mode": {"type": "string"}}}]},
+        ],
+        "control": {"protocol": "mqtt", "commands": {
+            "turn_on": {"topic": "t/ac", "payload": {"power": "on"}},
+            "set_mode": {"topic": "t/ac", "payload": {"mode": "auto"}},
+        }},
+    }
+
+
+def test_param_validation_enum_valid():
+    device = _mode_device()
+    cmd = build_command(device, "set_mode", {"mode": "cool"})
+    assert cmd.payload == {"mode": "cool"}
+
+
+def test_param_validation_enum_invalid():
+    device = _mode_device()
+    try:
+        build_command(device, "set_mode", {"mode": "烧烤"})
+        assert False, "应拦截非法枚举值"
     except ParamOutOfRangeError:
         pass
 
@@ -373,6 +414,27 @@ def test_automation_weather_trigger():
 
 
 # ---------------------------------------------------------------------------
+# 自动化规则持久化（trigger 无损序列化）
+# ---------------------------------------------------------------------------
+def test_trigger_roundtrip():
+    """trigger 序列化后能无损还原，重启后规则仍可触发。"""
+    trigger = weather("rain", "==", True)
+    restored = trigger_from_dict(trigger_to_dict(trigger))
+    assert restored.namespace == "weather"
+    assert restored.field == "rain"
+    assert restored.operator == "=="
+    assert restored.value is True
+    assert restored.evaluate({"weather": {"rain": True}}) is True
+    assert restored.evaluate({"weather": {"rain": False}}) is False
+
+
+def test_trigger_from_legacy_string_degraded():
+    """旧格式（repr 字符串）无法还原，降级为永不触发，不应抛异常。"""
+    restored = trigger_from_dict("weather.rain == True")
+    assert restored.evaluate({"weather": {"rain": True}}) is False
+
+
+# ---------------------------------------------------------------------------
 # 设备联动自动发现
 # ---------------------------------------------------------------------------
 def test_discover_linkages():
@@ -403,3 +465,94 @@ def test_discover_linkages():
     assert any(r.name == "低温自动开暖气" for r in rules2)
     # 空气净化器不存在，不应生成雾霾联动
     assert not any(r.name == "雾霾自动开净化器" for r in rules2)
+
+
+# ---------------------------------------------------------------------------
+# 编译缓存（P2）
+# ---------------------------------------------------------------------------
+class _MockLLMClient:
+    """记录调用次数，返回合法设备 JSON，用于验证缓存命中不重复调 LLM。"""
+
+    def __init__(self):
+        self.calls = 0
+
+    def chat(self, messages, json_mode=False, max_tokens=2048):
+        self.calls += 1
+        return json.dumps(_sample_device())
+
+
+def test_cache_save_load_hash_match():
+    tmp = tempfile.mkdtemp()
+    os.environ["DEVICEMIND_CACHE"] = tmp
+    save_cache("lamp-01", _sample_device(), "abc123")
+    cached = load_cached("lamp-01", "abc123")
+    assert cached is not None
+    assert cached["id"] == "lamp-01"
+
+
+def test_cache_hash_mismatch_invalidates():
+    tmp = tempfile.mkdtemp()
+    os.environ["DEVICEMIND_CACHE"] = tmp
+    save_cache("lamp-01", _sample_device(), "abc123")
+    assert load_cached("lamp-01", "different-hash") is None
+
+
+def test_compile_uses_cache():
+    tmp = tempfile.mkdtemp()
+    os.environ["DEVICEMIND_CACHE"] = tmp
+    client = _MockLLMClient()
+    compiler = DeviceCompiler(client=client)
+
+    manual = "产品：智能灯，支持开关和亮度调节"
+    d1 = compiler.compile(manual, "lamp-01")
+    assert client.calls == 1
+    # 相同说明书第二次编译命中缓存，不再调 LLM
+    d2 = compiler.compile(manual, "lamp-01")
+    assert client.calls == 1
+    assert d2 == d1
+    # 说明书变更（hash 不同）重新编译
+    compiler.compile(manual + "，另有色温调节", "lamp-01")
+    assert client.calls == 2
+
+
+def test_compile_feedback_skips_cache():
+    tmp = tempfile.mkdtemp()
+    os.environ["DEVICEMIND_CACHE"] = tmp
+    client = _MockLLMClient()
+    compiler = DeviceCompiler(client=client)
+
+    manual = "产品：智能灯"
+    compiler.compile(manual, "lamp-01")
+    assert client.calls == 1
+    # 纠错重编译（feedback 非空）必须重新走 LLM，不能吃缓存
+    compiler.compile(manual, "lamp-01", feedback="topic 错误")
+    assert client.calls == 2
+
+
+# ---------------------------------------------------------------------------
+# MQTT 适配层（纯内存接口，不连真实 Broker）
+# ---------------------------------------------------------------------------
+def test_mqtt_hub_register_and_state():
+    hub = MqttHub()
+    hub.register_device("lamp-01", "客厅灯", {"power": "off"})
+    assert hub.list_devices() == ["lamp-01"]
+    assert hub.get("lamp-01").get_state() == {"power": "off"}
+    assert hub.get_all_states() == {"lamp-01": {"power": "off"}}
+
+
+def test_mqtt_hub_restore_and_remove():
+    hub = MqttHub()
+    hub.register_device("lamp-01", "客厅灯", {})
+    hub.restore_states({"lamp-01": {"brightness": 50}})
+    assert hub.get("lamp-01").get_state()["brightness"] == 50
+
+    hub.remove("lamp-01")
+    assert hub.list_devices() == []
+    assert hub.get_all_states() == {}
+
+
+def test_mqtt_hub_probe_skips_verification():
+    hub = MqttHub()
+    hub.register_device("lamp-01", "客厅灯", {})
+    # 真实设备无 expected_topic，试运行验证先跳过（返回 True）
+    assert hub.probe("lamp-01", build_command(_sample_device(), "turn_on", {})) is True

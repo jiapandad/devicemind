@@ -70,6 +70,14 @@ class VirtualHub:
     def register(self, device: VirtualDevice) -> None:
         self.devices[device.device_id] = device
 
+    def register_device(self, device_id: str, name: str, state: dict[str, Any] | None = None) -> None:
+        """统一注册接口（与真实 MQTT hub 对齐），供 webapp 等上层调用。"""
+        self.register(VirtualDevice(device_id, name, state or {}))
+
+    def remove(self, device_id: str) -> None:
+        """移除设备（不存在的设备静默忽略）。"""
+        self.devices.pop(device_id, None)
+
     def get(self, device_id: str) -> VirtualDevice:
         if device_id not in self.devices:
             raise KeyError(f"虚拟设备不存在: {device_id}")

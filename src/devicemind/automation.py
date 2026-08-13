@@ -73,8 +73,55 @@ class FieldTrigger(Trigger):
             return False
         return _compare(actual, self.operator, self.value)
 
+    def to_dict(self) -> dict[str, Any]:
+        """序列化为可持久化的 dict，重启后能无损还原。"""
+        return {
+            "type": "field",
+            "namespace": self.namespace,
+            "field": self.field,
+            "operator": self.operator,
+            "value": self.value,
+        }
+
+    @classmethod
+    def from_dict(cls, data: dict[str, Any]) -> "FieldTrigger":
+        return cls(
+            data.get("namespace", ""),
+            data.get("field", ""),
+            data.get("operator", "=="),
+            data.get("value"),
+        )
+
     def __repr__(self) -> str:
         return f"{self.namespace}.{self.field} {self.operator} {self.value}"
+
+
+class _AlwaysFalse(Trigger):
+    """降级触发条件：永远不满足，用于无法精确还原的旧格式数据。"""
+
+    def evaluate(self, context: dict[str, Any]) -> bool:
+        return False
+
+
+def trigger_to_dict(trigger: Trigger) -> dict[str, Any]:
+    """把任意 Trigger 序列化为可持久化的 dict。"""
+    if isinstance(trigger, FieldTrigger):
+        return trigger.to_dict()
+    # 未知 trigger 类型无法精确还原，记录 repr 供排查
+    return {"type": "unknown", "repr": repr(trigger)}
+
+
+def trigger_from_dict(data: Any) -> Trigger:
+    """
+    从持久化数据恢复 Trigger。
+
+    兼容旧的 repr 字符串格式（无法还原，降级为永不触发）。
+    """
+    if not isinstance(data, dict):
+        return _AlwaysFalse()
+    if data.get("type") == "field":
+        return FieldTrigger.from_dict(data)
+    return _AlwaysFalse()
 
 
 # 便捷构造器

@@ -13,6 +13,7 @@
 
 from __future__ import annotations
 
+import hashlib
 import json
 import os
 from typing import Any
@@ -51,6 +52,7 @@ class DeviceCompiler:
         device_id: str,
         name_hint: str | None = None,
         feedback: str | None = None,
+        use_cache: bool = True,
     ) -> dict[str, Any]:
         """
         将说明书文本编译为设备描述 JSON。
@@ -60,6 +62,7 @@ class DeviceCompiler:
             device_id: 设备唯一标识
             name_hint: 可选，设备名提示（帮助 LLM 定位）
             feedback: 可选，上次编译的错误信息，用于纠错重编译
+            use_cache: 是否使用编译缓存（默认开启；纠错重编译时自动禁用）
 
         返回:
             设备描述 dict
@@ -67,10 +70,24 @@ class DeviceCompiler:
         if not manual_text or not manual_text.strip():
             raise ValueError("说明书内容为空")
 
-        user_prompt = self._build_prompt(manual_text, device_id, name_hint, feedback)
+        manual_hash = _manual_hash(manual_text)
+
+        # 缓存命中直接返回，省一次 LLM 调用；说明书变更（hash 不同）时自动失效。
+        # 纠错重编译（feedback 非空）必须走 LLM，不能吃缓存。
+        if use_cache and feedback is None:
+            cached = load_cached(device_id, manual_hash)
+            if cached:
+                return cached
+
+        # 外部传入的初始 feedback（如试运行验证失败后的纠错提示）
+        current_feedback = feedback
 
         last_error: Exception | None = None
         for attempt in range(1, self.max_retries + 1):
+            # 每次重试都把上次错误注入 prompt，让 LLM 针对性修正，而非重复相同请求
+            user_prompt = self._build_prompt(
+                manual_text, device_id, name_hint, current_feedback
+            )
             try:
                 raw = self.client.chat(
                     [
@@ -87,10 +104,13 @@ class DeviceCompiler:
 
                 # 保证 id 正确
                 device["id"] = device_id
+                if use_cache:
+                    save_cache(device_id, device, manual_hash)
                 return device
 
             except Exception as exc:  # noqa: BLE001
                 last_error = exc
+                current_feedback = str(exc)
                 if attempt < self.max_retries:
                     continue
 
@@ -133,21 +153,38 @@ JSON Schema（必须严格遵守）：
 # ---------------------------------------------------------------------------
 # 缓存：编译结果落盘，避免重复编译
 # ---------------------------------------------------------------------------
+def _manual_hash(manual_text: str) -> str:
+    """计算说明书内容哈希，用于判断缓存是否随说明书变更而失效。"""
+    return hashlib.sha256(manual_text.strip().encode("utf-8")).hexdigest()[:16]
+
+
 def cache_dir() -> str:
     base = os.getenv("DEVICEMIND_CACHE", os.path.join(os.getcwd(), ".devicemind_cache"))
     os.makedirs(base, exist_ok=True)
     return base
 
 
-def load_cached(device_id: str) -> dict[str, Any] | None:
+def load_cached(device_id: str, manual_hash: str | None = None) -> dict[str, Any] | None:
+    """
+    加载编译缓存。
+
+    新格式缓存为 {"manual_hash": ..., "device": {...}}，说明书的 hash 不匹配时
+    视为失效返回 None；兼容旧格式（直接存 device dict，无 hash 校验）。
+    """
     path = os.path.join(cache_dir(), f"{device_id}.json")
-    if os.path.exists(path):
-        with open(path, "r", encoding="utf-8") as f:
-            return json.load(f)
-    return None
+    if not os.path.exists(path):
+        return None
+    with open(path, "r", encoding="utf-8") as f:
+        data = json.load(f)
+    if isinstance(data, dict) and "device" in data and "manual_hash" in data:
+        if manual_hash is not None and data["manual_hash"] != manual_hash:
+            return None
+        return data["device"]
+    return data
 
 
-def save_cache(device_id: str, device: dict[str, Any]) -> None:
+def save_cache(device_id: str, device: dict[str, Any], manual_hash: str | None = None) -> None:
     path = os.path.join(cache_dir(), f"{device_id}.json")
+    payload = {"manual_hash": manual_hash, "device": device} if manual_hash else device
     with open(path, "w", encoding="utf-8") as f:
-        json.dump(device, f, ensure_ascii=False, indent=2)
+        json.dump(payload, f, ensure_ascii=False, indent=2)

@@ -121,6 +121,15 @@ def validate_params(
             spec = props.get(key)
             if not isinstance(spec, dict):
                 continue
+
+            # 枚举校验：拦截非法取值（如 mode 传入说明书里没有的模式）
+            enum_values = spec.get("enum")
+            if isinstance(enum_values, list) and enum_values:
+                if value not in enum_values:
+                    raise ParamOutOfRangeError(
+                        f"参数 {key}={value} 不在允许的枚举值内: {enum_values}"
+                    )
+
             if "min" not in spec and "max" not in spec:
                 continue
 

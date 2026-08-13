@@ -91,9 +91,23 @@ main { max-width: 1100px; margin: 0 auto; padding: 28px; }
 }
 .device-head { display: flex; align-items: center; gap: 12px; }
 .device-icon { width: 44px; height: 44px; border-radius: 12px; background: var(--primary-soft); display: flex; align-items: center; justify-content: center; font-size: 22px; }
-.device-name { font-size: 16px; font-weight: 600; }
+.device-head-main { flex: 1; min-width: 0; }
+.device-name { font-size: 16px; font-weight: 600; cursor: pointer; }
+.device-name:hover { color: var(--primary); }
 .device-type { font-size: 12px; color: var(--primary); background: var(--primary-soft); padding: 2px 8px; border-radius: 20px; }
 .device-id { font-size: 12px; color: var(--text-muted); }
+.device-del {
+  border: none;
+  background: transparent;
+  color: var(--text-muted);
+  font-size: 15px;
+  line-height: 1;
+  cursor: pointer;
+  padding: 6px 9px;
+  border-radius: 8px;
+  opacity: 0.45;
+}
+.device-del:hover { background: #fee2e2; color: #dc2626; opacity: 1; }
 
 .device-state { display: flex; flex-wrap: wrap; gap: 8px; }
 .state-chip {

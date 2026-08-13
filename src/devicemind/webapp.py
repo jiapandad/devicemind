@@ -15,6 +15,8 @@ API 一览：
     GET  /api/devices                   设备列表 + 实时状态
     POST /api/devices/compile           说明书 -> 编译成设备 JSON（预览）
     POST /api/devices                   添加设备（编译好的 JSON 或说明书文本）
+    PUT  /api/devices/<id>              编辑设备（部分字段 或 完整 JSON）
+    DELETE /api/devices/<id>            删除设备
     POST /api/devices/<id>/command      控制设备（自然语言 或 结构化动作）
     POST /api/scenes/<name>/trigger     触发场景
     POST /api/automation/tick           模拟环境变化，触发自动化
@@ -25,6 +27,7 @@ API 一览：
 from __future__ import annotations
 
 import json
+import os
 from pathlib import Path
 from typing import Any
 
@@ -37,10 +40,14 @@ from devicemind.intent import IntentParser
 from devicemind.linkage import integrate_new_device
 from devicemind.runtime import build_command
 from devicemind.scene import SceneManager, SceneStep, demo_scenes
-from devicemind.simulator import VirtualDevice, VirtualHub
+from devicemind.simulator import VirtualHub
 
 # 前端静态文件目录（devicemind/web/）
 WEB_DIR = Path(__file__).resolve().parent.parent.parent / "web"
+
+# 可选鉴权：设置环境变量 DEVICEMIND_API_TOKEN 后，所有 /api/* 请求需携带该 token。
+# 未设置则保持原有行为（本地 127.0.0.1 演示足够安全）。
+API_TOKEN = os.getenv("DEVICEMIND_API_TOKEN", "").strip()
 
 
 # ---------------------------------------------------------------------------
@@ -79,7 +86,8 @@ PRESET_DEVICES: list[dict[str, Any]] = [
             _cap("power", {}, [_act("turn_on"), _act("turn_off")]),
             _cap("temperature", {"temperature": {"type": "integer", "min": 16, "max": 30}},
                  [_act("set_temperature", {"temperature": {"type": "integer"}})]),
-            _cap("mode", {}, [_act("set_mode", {"mode": {"type": "string"}})]),
+            _cap("mode", {"mode": {"type": "string", "enum": ["cool", "heat", "auto", "dry", "fan"]}},
+                 [_act("set_mode", {"mode": {"type": "string"}})]),
             _cap("fan_speed", {"fan_speed": {"type": "integer", "min": 1, "max": 5}},
                  [_act("set_fan_speed", {"fan_speed": {"type": "integer"}})]),
         ],
@@ -107,7 +115,8 @@ PRESET_DEVICES: list[dict[str, Any]] = [
         "brand": "示例", "model": "P1", "description": "空气净化器",
         "capabilities": [
             _cap("power", {}, [_act("turn_on"), _act("turn_off")]),
-            _cap("mode", {}, [_act("set_mode", {"mode": {"type": "string"}})]),
+            _cap("mode", {"mode": {"type": "string", "enum": ["auto", "sleep", "high", "low"]}},
+                 [_act("set_mode", {"mode": {"type": "string"}})]),
         ],
         "control": {"protocol": "mqtt", "commands": {
             "turn_on": {"topic": "smarthome/purifier01/set", "payload": {"power": "on"}},
@@ -178,6 +187,17 @@ PRESET_STATES: dict[str, dict[str, Any]] = {
 
 
 # ---------------------------------------------------------------------------
+# 设备执行器工厂
+# ---------------------------------------------------------------------------
+def _create_hub() -> Any:
+    """根据环境变量 DEVICEMIND_HUB 选择执行器：默认虚拟，mqtt 接真实 Broker。"""
+    if os.getenv("DEVICEMIND_HUB", "").lower() == "mqtt":
+        from devicemind.mqtt_hub import MqttHub
+        return MqttHub()
+    return VirtualHub()
+
+
+# ---------------------------------------------------------------------------
 # 应用状态（单例，持有所有运行时对象）
 # ---------------------------------------------------------------------------
 class AppState:
@@ -185,7 +205,7 @@ class AppState:
 
     def __init__(self) -> None:
         self.devices: dict[str, dict[str, Any]] = {}
-        self.hub = VirtualHub()
+        self.hub = _create_hub()
         self.scenes = SceneManager()
         self.automation = AutomationEngine()
         self.compiler = DeviceCompiler()
@@ -212,7 +232,7 @@ class AppState:
 
         for device_id, device in self.devices.items():
             state = states.get(device_id, {})
-            self.hub.register(VirtualDevice(device_id, device.get("name", device_id), state))
+            self.hub.register_device(device_id, device.get("name", device_id), state)
 
     def _load_scenes(self) -> None:
         saved = storage.load_scenes()
@@ -271,13 +291,15 @@ class AppState:
         ]
 
     def persist(self) -> None:
+        from devicemind.automation import trigger_to_dict
+
         storage.save_json("devices.json", [self.devices[d] for d in self.devices])
         storage.save_states(self.hub.get_all_states())
         self.scenes.save()
         storage.save_json(
             "automations.json",
             [
-                {"name": r.name, "trigger": repr(r.trigger),
+                {"name": r.name, "trigger": trigger_to_dict(r.trigger),
                  "actions": [s.to_dict() for s in r.actions], "description": r.description}
                 for r in self.automation.rules
             ],
@@ -293,17 +315,13 @@ def _scene_from_dict(data: dict[str, Any]):
 
 
 def _rule_from_dict(data: dict[str, Any]) -> AutomationRule:
-    """从持久化数据恢复自动化规则（简化：trigger 用 repr 字符串无法精确还原，降级为空触发）。"""
-    from devicemind.automation import Trigger
-
-    class _AlwaysFalse(Trigger):
-        def evaluate(self, context):
-            return False
+    """从持久化数据恢复自动化规则（trigger 支持无损还原，旧格式降级为永不触发）。"""
+    from devicemind.automation import trigger_from_dict
 
     steps = [SceneStep(s["device_id"], s["action"], s.get("params", {})) for s in data.get("actions", [])]
     return AutomationRule(
         name=data["name"],
-        trigger=_AlwaysFalse(),
+        trigger=trigger_from_dict(data.get("trigger")),
         actions=steps,
         description=data.get("description", ""),
     )
@@ -327,6 +345,19 @@ STATE = AppState()
 def create_app() -> Flask:
     app = Flask(__name__, static_folder=None)
     STATE.init()
+
+    # ---- 可选 token 鉴权（仅保护 /api/*，静态页面无需鉴权）----
+    @app.before_request
+    def _auth():
+        if not API_TOKEN or not request.path.startswith("/api/"):
+            return None
+        token = request.headers.get("X-API-Token", "")
+        auth = request.headers.get("Authorization", "")
+        if auth.startswith("Bearer "):
+            token = auth[7:].strip()
+        if token != API_TOKEN:
+            return jsonify({"ok": False, "error": "未授权：缺少或错误的 API Token"}), 401
+        return None
 
     # ---- 前端页面 ----
     @app.route("/")
@@ -398,7 +429,7 @@ def create_app() -> Flask:
         is_new = device_id not in STATE.devices
         STATE.devices[device_id] = device
         if device_id not in STATE.hub.devices:
-            STATE.hub.register(VirtualDevice(device_id, device.get("name", device_id), {}))
+            STATE.hub.register_device(device_id, device.get("name", device_id), {})
 
         # 自动联动发现
         new_linkages: list[str] = []
@@ -418,6 +449,53 @@ def create_app() -> Flask:
             "linkages": new_linkages,
             "message": f"设备 {device.get('name', device_id)} 已接入，自动生成 {len(new_linkages)} 条联动",
         })
+
+    @app.route("/api/devices/<device_id>", methods=["PUT"])
+    def api_update_device(device_id: str):
+        """
+        编辑设备。body 二选一：
+        1. {"device": {...}}                完整替换设备 JSON
+        2. {"name": "...", "description": "..."}  部分字段更新
+        """
+        device = STATE.devices.get(device_id)
+        if device is None:
+            return jsonify({"ok": False, "error": f"设备不存在: {device_id}"}), 404
+
+        body = request.get_json(silent=True) or {}
+
+        if "device" in body:
+            new_device = body["device"]
+            if not isinstance(new_device, dict) or not new_device.get("id"):
+                return jsonify({"ok": False, "error": "device 字段必须是含 id 的设备对象"}), 400
+            if new_device["id"] != device_id:
+                return jsonify({"ok": False, "error": "device.id 与路径 device_id 不一致"}), 400
+            STATE.devices[device_id] = new_device
+        else:
+            for field in ["name", "description", "brand", "model"]:
+                if field in body:
+                    device[field] = body[field]
+
+        # 同步 hub 里的展示名（若 hub 设备对象支持 name 属性）
+        vd = STATE.hub.devices.get(device_id)
+        if vd is not None and hasattr(vd, "name"):
+            vd.name = STATE.devices[device_id].get("name", device_id)
+
+        STATE.persist()
+        return jsonify({"ok": True, "data": STATE.devices[device_id]})
+
+    @app.route("/api/devices/<device_id>", methods=["DELETE"])
+    def api_delete_device(device_id: str):
+        """删除设备，并清理其关联的联动展示记录。"""
+        device = STATE.devices.get(device_id)
+        if device is None:
+            return jsonify({"ok": False, "error": f"设备不存在: {device_id}"}), 404
+
+        name = device.get("name", device_id)
+        del STATE.devices[device_id]
+        STATE.hub.remove(device_id)
+        STATE.linkages = [l for l in STATE.linkages if l.get("device") != name]
+        STATE.persist()
+        return jsonify({"ok": True, "message": f"设备 {name} 已删除"})
 
     @app.route("/api/devices/<device_id>/command", methods=["POST"])
     def api_command(device_id: str):

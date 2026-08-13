@@ -38,8 +38,33 @@
     t._timer = setTimeout(function () { t.className = "toast"; }, 2600);
   }
 
+  function getToken() {
+    try { return localStorage.getItem("devicemind_token") || ""; }
+    catch (e) { return ""; }
+  }
+
+  function promptToken() {
+    var token = window.prompt("此实例启用了 API Token 鉴权，请输入 Token：");
+    if (token) {
+      try { localStorage.setItem("devicemind_token", token.trim()); } catch (e) {}
+      fetchState();
+    }
+  }
+
   function api(path, opts) {
-    return fetch(path, opts).then(function (r) { return r.json(); });
+    opts = opts || {};
+    opts.headers = opts.headers || {};
+    var token = getToken();
+    if (token) {
+      opts.headers["X-API-Token"] = token;
+    }
+    return fetch(path, opts).then(function (r) {
+      if (r.status === 401) {
+        promptToken();
+        return Promise.reject(new Error("未授权"));
+      }
+      return r.json();
+    });
   }
 
   // ---------- 状态加载与渲染 ----------
@@ -87,8 +112,11 @@
       '<div class="device-card" data-id="' + esc(d.id) + '">' +
         '<div class="device-head">' +
           '<div class="device-icon">' + icon + "</div>" +
-          '<div><div class="device-name">' + esc(d.name) + "</div>" +
-          '<div class="device-id">' + esc(d.id) + ' · <span class="device-type">' + esc(typeLabel) + "</span></div></div>" +
+          '<div class="device-head-main">' +
+            '<div class="device-name" data-rename="' + esc(d.id) + '" title="点击重命名">' + esc(d.name) + "</div>" +
+            '<div class="device-id">' + esc(d.id) + ' · <span class="device-type">' + esc(typeLabel) + "</span></div>" +
+          "</div>" +
+          '<button class="device-del" data-del="' + esc(d.id) + '" title="删除设备">✕</button>' +
         "</div>" +
         '<div class="device-state">' + stateChips + "</div>" +
         '<div class="device-actions">' + controls + "</div>" +
@@ -163,6 +191,35 @@
   }
 
   function bindDeviceEvents() {
+    // 删除设备
+    $all("[data-del]").forEach(function (btn) {
+      btn.addEventListener("click", function () {
+        var id = btn.dataset.del;
+        if (!window.confirm("确定删除该设备吗？")) return;
+        api("/api/devices/" + id, { method: "DELETE" }).then(function (j) {
+          showToast(j.ok ? j.message : j.error, j.ok ? "success" : "error");
+          fetchState();
+        });
+      });
+    });
+
+    // 重命名设备
+    $all("[data-rename]").forEach(function (el) {
+      el.addEventListener("click", function () {
+        var id = el.dataset.rename;
+        var name = window.prompt("输入新名称：", el.textContent);
+        if (!name || !name.trim()) return;
+        api("/api/devices/" + id, {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ name: name.trim() }),
+        }).then(function (j) {
+          showToast(j.ok ? "已重命名" : j.error, j.ok ? "success" : "error");
+          fetchState();
+        });
+      });
+    });
+
     // 开关按钮
     $all(".power-btn").forEach(function (btn) {
       btn.addEventListener("click", function () {

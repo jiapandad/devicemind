@@ -108,7 +108,18 @@ DEVICE_SCHEMA: dict[str, Any] = {
                     },
                     "properties": {
                         "type": "object",
-                        "description": "可读属性，键为属性名，值为 {type, unit, min, max, description}",
+                        "description": "可读属性，键为属性名，值为 {type, unit, min, max, enum, description}",
+                        "additionalProperties": {
+                            "type": "object",
+                            "properties": {
+                                "type": {"type": "string"},
+                                "unit": {"type": "string"},
+                                "min": {},
+                                "max": {},
+                                "enum": {"type": "array", "description": "允许的枚举取值"},
+                                "description": {"type": "string"},
+                            },
+                        },
                     },
                     "actions": {
                         "type": "array",
