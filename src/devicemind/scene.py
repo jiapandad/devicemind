@@ -25,6 +25,13 @@ class SceneStep:
     action: str
     params: dict[str, Any] = field(default_factory=dict)
 
+    def to_dict(self) -> dict[str, Any]:
+        return {"device_id": self.device_id, "action": self.action, "params": self.params}
+
+    @classmethod
+    def from_dict(cls, data: dict[str, Any]) -> "SceneStep":
+        return cls(data["device_id"], data["action"], data.get("params", {}))
+
 
 @dataclass
 class Scene:
@@ -32,6 +39,21 @@ class Scene:
     name: str
     steps: list[SceneStep]
     description: str = ""
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "name": self.name,
+            "description": self.description,
+            "steps": [s.to_dict() for s in self.steps],
+        }
+
+    @classmethod
+    def from_dict(cls, data: dict[str, Any]) -> "Scene":
+        return cls(
+            name=data["name"],
+            description=data.get("description", ""),
+            steps=[SceneStep.from_dict(s) for s in data.get("steps", [])],
+        )
 
 
 class SceneManager:
@@ -51,6 +73,25 @@ class SceneManager:
 
     def list_scenes(self) -> list[str]:
         return list(self.scenes.keys())
+
+    # ------------------------------------------------------------------
+    def save(self, path: str | None = None) -> None:
+        """保存场景配置到磁盘（默认用 storage 模块的数据目录）。"""
+        from devicemind.storage import save_scenes
+
+        data = {name: s.to_dict() for name, s in self.scenes.items()}
+        if path:
+            from devicemind.storage import save_json
+            save_json(path, data)
+        else:
+            save_scenes(data)
+
+    def load(self, path: str | None = None) -> None:
+        """从磁盘加载场景配置（覆盖当前场景）。"""
+        from devicemind.storage import load_scenes, load_json
+
+        data = load_json(path) if path else load_scenes()
+        self.scenes = {name: Scene.from_dict(s) for name, s in data.items()}
 
     # ------------------------------------------------------------------
     def trigger(
