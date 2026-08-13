@@ -15,6 +15,7 @@ from devicemind.simulator import VirtualDevice, VirtualHub  # noqa: E402
 from devicemind.scene import SceneManager, Scene, SceneStep  # noqa: E402
 from devicemind.verify import verify_device, pick_verify_action  # noqa: E402
 from devicemind.automation import AutomationEngine, AutomationRule, weather, time  # noqa: E402
+from devicemind.linkage import discover_linkages  # noqa: E402
 from devicemind import storage  # noqa: E402
 
 
@@ -369,3 +370,36 @@ def test_automation_weather_trigger():
     # 温度 5 触发
     assert len(engine.tick({"weather": {"temp": 5}}, devices, hub)) == 1
     assert hub.get("heater-01").get_state()["power"] == "on"
+
+
+# ---------------------------------------------------------------------------
+# 设备联动自动发现
+# ---------------------------------------------------------------------------
+def test_discover_linkages():
+    """新设备接入，根据能力自动发现联动。"""
+    existing = {
+        "curtain-01": {"id": "curtain-01", "type": "other", "name": "智能窗帘",
+                       "capabilities": [], "control": {}},
+        "heater-01": {"id": "heater-01", "type": "other", "name": "地暖暖气",
+                      "capabilities": [], "control": {}},
+    }
+    # 雨水传感器 → 应发现"下雨关窗"
+    rain_sensor = {"id": "rs-01", "type": "sensor", "name": "雨水传感器",
+                   "capabilities": [{"name": "rain", "properties": {}, "actions": []}],
+                   "control": {}}
+    rules = discover_linkages(rain_sensor, existing)
+    assert len(rules) == 1
+    assert rules[0].name == "下雨自动关窗"
+    assert rules[0].actions[0].device_id == "curtain-01"
+
+    # 温湿度传感器 → 应发现"低温开暖气"（窗帘已有，但空气净化器没有所以只有暖气）
+    th_sensor = {"id": "th-01", "type": "sensor", "name": "温湿度传感器",
+                 "capabilities": [
+                     {"name": "temperature", "properties": {}, "actions": []},
+                     {"name": "air_quality", "properties": {}, "actions": []},
+                 ],
+                 "control": {}}
+    rules2 = discover_linkages(th_sensor, existing)
+    assert any(r.name == "低温自动开暖气" for r in rules2)
+    # 空气净化器不存在，不应生成雾霾联动
+    assert not any(r.name == "雾霾自动开净化器" for r in rules2)
