@@ -5,12 +5,12 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "devicemind"
 version = "0.1.0"
-description = "设备世界的操作系统 —— 用 LLM 读设备说明书，自动编译成结构化协议"
+description = "Home Assistant 设备接入增强层 —— 用 LLM 读设备说明书，自动编译成结构化协议 JSON"
 readme = "README.md"
 requires-python = ">=3.10"
 license = { text = "Apache-2.0" }
 authors = [{ name = "DeviceMind Contributors" }]
-keywords = ["iot", "smart-home", "llm", "ai-agent", "device-os"]
+keywords = ["home-assistant", "iot", "smart-home", "llm", "ai-agent"]
 dependencies = [
     "openai>=1.0.0",
     "requests>=2.31.0",
@@ -18,7 +18,6 @@ dependencies = [
 
 [project.optional-dependencies]
 pdf = ["pypdf>=4.0.0", "rapidocr-onnxruntime>=1.2.0", "pymupdf>=1.24.0"]
-mqtt = ["paho-mqtt>=2.0.0"]
 dev = ["pytest>=7.0", "ruff>=0.5.0"]
 
 [tool.setuptools.packages.find]

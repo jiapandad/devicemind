@@ -30,9 +30,9 @@ def main() -> None:
     args = parser.parse_args()
 
     print("=" * 56)
-    print("  DeviceMind · 设备世界的操作系统")
+    print("  DeviceMind · Home Assistant 设备接入增强层")
     print(f"  打开浏览器访问: http://{args.host}:{args.port}")
-    print("  提示: 添加设备（读说明书）需要配置 LLM")
+    print("  提示: 编译设备协议需要配置 LLM")
     print("=" * 56)
 
     app.run(host=args.host, port=args.port, debug=args.debug)

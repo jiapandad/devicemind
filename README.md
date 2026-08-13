@@ -34,7 +34,8 @@ DeviceMind 的思路是：**让 AI 读说明书，把"人肉写 adapter"变成"�
 | PDF/OCR | 文本型 + 扫描型说明书都能读 |
 | 编译缓存 | 相同说明书不重复编译，按内容 hash 自动失效 |
 | HA 集成 | 通用集成读取协议 JSON，自动注册为 HA entity，支持 UI 配置（config flow） |
-| Web UI | 浏览器贴说明书，编译并导出协议 JSON |
+| Web UI | 浏览器贴说明书，编译并查看/复制协议 JSON |
+| CI | GitHub Actions 自动跑 pytest + ruff（Python 3.10/3.11/3.12） |
 
 ## 快速开始
 
@@ -85,8 +86,8 @@ python scripts/phase0_demo.py examples/sample_light.txt --id lamp-01
     },
     {
       "name": "brightness",
-      "actions": [{"name": "set_brightness", "params": {"brightness": {"type": "number"}}}],
-      "properties": {"brightness": {"type": "number", "min": 1, "max": 100}}
+      "actions": [{"name": "set_brightness", "params": {"brightness": {"type": "integer"}}}],
+      "properties": {"brightness": {"type": "integer", "min": 1, "max": 100}}
     }
   ],
   "control": {
@@ -133,10 +134,14 @@ devicemind/
 ├── scripts/
 │   ├── run_web.py            # 启动 Web UI
 │   ├── phase0_demo.py        # 命令行编译（支持 txt/pdf）
-│   └── batch_test.py         # 泛化批量测试
+│   ├── batch_test.py         # 泛化批量测试
+│   ├── test_ocr.py           # 扫描版 PDF 识别测试
+│   └── test_pdf.py           # 文本型 PDF 提取测试
 ├── examples/
-│   └── sample_*.txt          # 设备说明书样例
-└── tests/
+│   ├── sample_*.txt          # 各品类设备说明书样例
+│   └── *.pdf                 # 文本型 / 扫描型 PDF 样例
+├── tests/                    # 单元测试
+└── .github/workflows/ci.yml  # CI（pytest + ruff）
 ```
 
 ## 支持的说明书格式

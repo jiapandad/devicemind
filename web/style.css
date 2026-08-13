@@ -78,7 +78,6 @@ main { max-width: 1100px; margin: 0 auto; padding: 28px; }
 .muted { color: var(--text-muted); font-size: 13px; }
 
 /* ---- 设备卡片 ---- */
-.devices-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: 18px; }
 .device-card {
   background: var(--card);
   border: 1px solid var(--border);
@@ -90,47 +89,9 @@ main { max-width: 1100px; margin: 0 auto; padding: 28px; }
   gap: 14px;
 }
 .device-head { display: flex; align-items: center; gap: 12px; }
-.device-icon { width: 44px; height: 44px; border-radius: 12px; background: var(--primary-soft); display: flex; align-items: center; justify-content: center; font-size: 22px; }
 .device-head-main { flex: 1; min-width: 0; }
-.device-name { font-size: 16px; font-weight: 600; cursor: pointer; }
-.device-name:hover { color: var(--primary); }
-.device-type { font-size: 12px; color: var(--primary); background: var(--primary-soft); padding: 2px 8px; border-radius: 20px; }
+.device-name { font-size: 16px; font-weight: 600; }
 .device-id { font-size: 12px; color: var(--text-muted); }
-.device-del {
-  border: none;
-  background: transparent;
-  color: var(--text-muted);
-  font-size: 15px;
-  line-height: 1;
-  cursor: pointer;
-  padding: 6px 9px;
-  border-radius: 8px;
-  opacity: 0.45;
-}
-.device-del:hover { background: #fee2e2; color: #dc2626; opacity: 1; }
-
-.device-state { display: flex; flex-wrap: wrap; gap: 8px; }
-.state-chip {
-  font-size: 13px;
-  padding: 4px 10px;
-  border-radius: 20px;
-  background: #f3f4f6;
-  color: var(--text-muted);
-}
-.state-chip.on { background: #dcfce7; color: var(--on); font-weight: 600; }
-.state-chip.off { background: #f3f4f6; color: var(--off); }
-
-.device-actions { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
-.device-actions .power-btn {
-  width: 56px; height: 30px; border-radius: 20px; border: none; cursor: pointer;
-  background: #e5e7eb; position: relative; transition: background 0.2s; flex-shrink: 0;
-}
-.device-actions .power-btn::after {
-  content: ""; position: absolute; top: 3px; left: 3px; width: 24px; height: 24px;
-  border-radius: 50%; background: #fff; box-shadow: 0 1px 2px rgba(0,0,0,0.2); transition: left 0.2s;
-}
-.device-actions .power-btn.on { background: var(--on); }
-.device-actions .power-btn.on::after { left: 29px; }
 
 .btn {
   padding: 8px 14px; border-radius: 10px; border: 1px solid var(--border);
@@ -143,17 +104,6 @@ main { max-width: 1100px; margin: 0 auto; padding: 28px; }
 .btn.ghost { color: var(--text-muted); }
 .btn.danger { color: var(--danger); border-color: #fecaca; }
 .btn:disabled { opacity: 0.5; cursor: not-allowed; }
-
-.slider-wrap { display: flex; align-items: center; gap: 8px; font-size: 13px; color: var(--text-muted); flex: 1; min-width: 120px; }
-.slider-wrap input[type="range"] { flex: 1; accent-color: var(--primary); }
-.slider-wrap .val { min-width: 36px; text-align: right; color: var(--text); font-weight: 600; }
-
-.stepper { display: flex; align-items: center; gap: 6px; }
-.stepper .val { min-width: 28px; text-align: center; font-weight: 600; }
-
-.text-command { display: flex; gap: 8px; margin-top: auto; }
-.text-command input { flex: 1; padding: 8px 12px; border: 1px solid var(--border); border-radius: 10px; font-size: 14px; }
-.text-command input:focus { outline: none; border-color: var(--primary); }
 
 /* ---- 添加设备 ---- */
 .add-wrap { background: var(--card); border: 1px solid var(--border); border-radius: var(--radius); padding: 24px; max-width: 720px; display: flex; flex-direction: column; gap: 16px; box-shadow: var(--shadow); }
@@ -168,31 +118,6 @@ main { max-width: 1100px; margin: 0 auto; padding: 28px; }
 .add-result { padding: 14px; border-radius: 10px; background: #f9fafb; border: 1px solid var(--border); font-size: 13px; white-space: pre-wrap; word-break: break-all; }
 .add-result.ok { background: #f0fdf4; border-color: #bbf7d0; color: #166534; }
 .add-result.err { background: #fef2f2; border-color: #fecaca; color: #991b1b; }
-
-/* ---- 场景 ---- */
-.scenes-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 18px; }
-.scene-card { background: var(--card); border: 1px solid var(--border); border-radius: var(--radius); padding: 18px; box-shadow: var(--shadow); display: flex; flex-direction: column; gap: 10px; }
-.scene-name { font-size: 16px; font-weight: 600; }
-.scene-desc { font-size: 13px; color: var(--text-muted); }
-.scene-steps { display: flex; flex-wrap: wrap; gap: 6px; }
-.scene-step { font-size: 12px; padding: 3px 8px; border-radius: 14px; background: #f3f4f6; color: var(--text-muted); }
-
-/* ---- 自动化 ---- */
-.sim-buttons { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-bottom: 20px; padding: 14px; background: #fff; border: 1px solid var(--border); border-radius: var(--radius); }
-.automations-list { display: flex; flex-direction: column; gap: 12px; }
-.automation-card { background: var(--card); border: 1px solid var(--border); border-radius: var(--radius); padding: 16px; box-shadow: var(--shadow); display: flex; align-items: center; gap: 14px; }
-.automation-icon { font-size: 24px; }
-.automation-body { flex: 1; }
-.automation-name { font-weight: 600; font-size: 15px; }
-.automation-trigger { font-size: 13px; color: var(--primary); font-family: monospace; }
-.automation-desc { font-size: 13px; color: var(--text-muted); }
-
-/* ---- 联动 ---- */
-.linkages-list { display: flex; flex-direction: column; gap: 12px; }
-.linkage-card { background: var(--card); border: 1px solid var(--border); border-radius: var(--radius); padding: 16px; box-shadow: var(--shadow); display: flex; align-items: center; gap: 12px; }
-.linkage-icon { font-size: 22px; }
-.linkage-text { font-size: 14px; }
-.linkage-text strong { color: var(--primary); }
 .empty { padding: 40px; text-align: center; color: var(--text-muted); }
 
 /* ---- Toast ---- */
@@ -209,7 +134,6 @@ main { max-width: 1100px; margin: 0 auto; padding: 28px; }
   .topbar { padding: 14px 16px; }
   .tabs { padding: 0 12px; overflow-x: auto; }
   main { padding: 16px; }
-  .devices-grid, .scenes-grid { grid-template-columns: 1fr; }
 }
 
 /* ---- 编译工具：已编译设备列表 ---- */
