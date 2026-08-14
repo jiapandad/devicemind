@@ -200,6 +200,7 @@ def validate_device(device: dict[str, Any]) -> list[str]:
     if "type" in device and device["type"] not in DEVICE_TYPES:
         errors.append(f"未知设备类型: {device['type']}，应为 {DEVICE_TYPES} 之一")
 
+    # capabilities 校验：能力名 + 动作名必须落在标准枚举内
     if "capabilities" in device and not isinstance(device["capabilities"], list):
         errors.append("capabilities 必须是数组")
     elif "capabilities" in device:
@@ -207,10 +208,42 @@ def validate_device(device: dict[str, Any]) -> list[str]:
             if not isinstance(cap, dict):
                 errors.append(f"capabilities[{i}] 必须是对象")
                 continue
-            if "name" not in cap:
+
+            name = cap.get("name")
+            if name is None:
                 errors.append(f"capabilities[{i}] 缺少 name")
-            if "actions" not in cap or not isinstance(cap.get("actions"), list):
+            elif name not in CAPABILITIES:
+                errors.append(
+                    f"capabilities[{i}] 能力名 '{name}' 不在标准集合 {CAPABILITIES} 中"
+                )
+
+            actions = cap.get("actions")
+            if not isinstance(actions, list):
                 errors.append(f"capabilities[{i}] 缺少 actions 数组")
+                continue
+            for j, act in enumerate(actions):
+                if not isinstance(act, dict):
+                    errors.append(f"capabilities[{i}].actions[{j}] 必须是对象")
+                    continue
+                act_name = act.get("name")
+                if act_name is None:
+                    errors.append(f"capabilities[{i}].actions[{j}] 缺少 name")
+                elif act_name not in ACTIONS:
+                    errors.append(
+                        f"capabilities[{i}].actions[{j}] 动作名 '{act_name}' "
+                        f"不在标准集合 {ACTIONS} 中"
+                    )
+
+    # control 校验：协议名枚举
+    control = device.get("control")
+    if isinstance(control, dict):
+        protocol = control.get("protocol")
+        if protocol is not None and protocol not in (
+            "mqtt", "http", "serial", "ble", "unknown",
+        ):
+            errors.append(
+                f"未知协议: {protocol}，应为 mqtt/http/serial/ble/unknown 之一"
+            )
 
     return errors
 

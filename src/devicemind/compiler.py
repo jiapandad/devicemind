@@ -30,7 +30,12 @@ SYSTEM_PROMPT = """你是 DeviceMind 的设备编译器。你的任务是把设�
 3. 从说明书中提取：设备类型(type)、能力(capabilities)、如何发指令(control)
 4. 【关键】逐条对照说明书的"功能说明"，每一条功能都要对应一个 capability，不得遗漏（尤其注意颜色、色温、亮度、电量/电池 battery 等易漏项）
 5. 能力要拆解成原子单元。例如"可调亮度+可调色温+可变颜色" -> power + brightness + color_temp + color
-6. 动作(action)命名必须用标准动词（见 Schema 的 enum）：turn_on / turn_off / set_brightness / set_color / set_color_temp / set_temperature / set_mode / get_state / get_battery
+6. 动作(action)命名必须用标准动词（见 Schema 的 enum），并严格按语义选词，禁止自造动词：
+   - 开关电源：turn_on / turn_off
+   - 门锁上锁/解锁：lock / unlock（禁止用 set_lock_state）
+   - 窗帘/卷帘开合：open / close / stop / set_position
+   - 数值设置：set_brightness / set_color / set_color_temp / set_temperature / set_mode / set_fan_speed / set_volume / set_humidity
+   - 只读查询：get_state / get_battery（读取电量用 get_battery，禁止用 set_battery）
 7. control.commands 必须是 {动作名: {topic, payload}} 结构化对象。payload 是 JSON 对象，参数值用字符串占位符如 "{brightness}"。禁止把 topic 和 payload 拼成一个字符串
 8. 如果说明书没提到控制协议，control.protocol 填 "unknown"，commands 填 {}
 9. 不要编造说明书里没有的功能

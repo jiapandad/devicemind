@@ -75,6 +75,45 @@ def test_validate_unknown_type():
     assert any("未知设备类型" in e for e in validate_device(device))
 
 
+def test_validate_unknown_capability():
+    device = {
+        "id": "x",
+        "type": "light",
+        "name": "灯",
+        "capabilities": [{"name": "laser", "properties": {}, "actions": []}],
+        "control": {"protocol": "unknown", "commands": {}},
+    }
+    assert any("能力名" in e for e in validate_device(device))
+
+
+def test_validate_unknown_action():
+    device = {
+        "id": "x",
+        "type": "lock",
+        "name": "门锁",
+        "capabilities": [
+            {
+                "name": "lock_state",
+                "properties": {},
+                "actions": [{"name": "set_lock_state", "params": {}}],
+            }
+        ],
+        "control": {"protocol": "unknown", "commands": {}},
+    }
+    assert any("动作名" in e for e in validate_device(device))
+
+
+def test_validate_unknown_protocol():
+    device = {
+        "id": "x",
+        "type": "light",
+        "name": "灯",
+        "capabilities": [],
+        "control": {"protocol": "carrier_pigeon", "commands": {}},
+    }
+    assert any("未知协议" in e for e in validate_device(device))
+
+
 # ---------------------------------------------------------------------------
 # extract_json
 # ---------------------------------------------------------------------------

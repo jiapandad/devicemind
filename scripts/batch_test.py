@@ -23,6 +23,7 @@ from devicemind.schema import ACTIONS  # noqa: E402
 
 # 测试用例：设备ID -> (说明书路径, 期望类型, 期望能力)
 CASES = [
+    ("light-01", "examples/sample_light.txt", "light", ["power", "brightness"]),
     ("ac-01", "examples/sample_aircon.txt", "climate", ["power", "temperature", "mode", "fan_speed"]),
     ("vacuum-01", "examples/sample_vacuum.txt", "vacuum", ["power", "mode", "fan_speed"]),
     ("lock-01", "examples/sample_lock.txt", "lock", ["lock_state", "battery"]),
