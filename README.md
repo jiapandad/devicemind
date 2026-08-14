@@ -37,6 +37,7 @@ DeviceMind 的思路是：**让 AI 读说明书，把"人肉写 adapter"变成"�
 | 状态回传 | 订阅 MQTT 状态主题，传感器读数/设备真实状态实时更新 |
 | 多协议 | 支持 MQTT 与 HTTP 两种控制协议 |
 | HACS 分发 | 可通过 HACS 一键安装 |
+| 真机验证 | 真实 HA + MQTT 环境跑通「控制 → 状态回传」闭环 |
 | Web UI | 浏览器贴说明书，编译并查看/复制协议 JSON |
 | CI | GitHub Actions 自动跑 pytest + ruff（Python 3.10/3.11/3.12） |
 
@@ -170,17 +171,24 @@ devicemind/
 │   ├── camera.py             # 摄像头
 │   └── sensor.py             # 传感器
 ├── hacs.json                 # HACS 分发元数据
+├── docker-compose.yml        # 本地验证环境（Home Assistant + Mosquitto）
+├── mosquitto/                # MQTT Broker 测试配置
 ├── web/                      # Web UI 前端
 ├── scripts/
 │   ├── run_web.py            # 启动 Web UI
 │   ├── phase0_demo.py        # 命令行编译（支持 txt/pdf）
+│   ├── mock_device.py        # 模拟 MQTT 设备（验证控制/状态回传闭环）
 │   ├── batch_test.py         # 泛化批量测试
 │   ├── test_ocr.py           # 扫描版 PDF 识别测试
 │   └── test_pdf.py           # 文本型 PDF 提取测试
 ├── examples/
 │   ├── sample_*.txt          # 各品类设备说明书样例
 │   └── *.pdf                 # 文本型 / 扫描型 PDF 样例
-├── tests/                    # 单元测试
+├── tests/                    # 单元测试（44 个）
+│   ├── test_core.py          # 编译器核心（编译/缓存/schema）
+│   ├── test_mapping.py       # 设备值 <-> HA 枚举映射
+│   ├── test_ha_runtime.py    # HA 指令构建
+│   └── test_ha_platforms.py  # 各平台状态回传映射
 └── .github/workflows/ci.yml  # CI（pytest + ruff）
 ```
 
@@ -201,6 +209,7 @@ devicemind/
 - [x] **状态回传闭环**：传感器读数、设备真实状态（MQTT 订阅）
 - [x] **HTTP 协议适配**：支持走 HTTP 的设备
 - [x] **HACS 分发**：支持 HACS 一键安装
+- [ ] **编译成功率验证**：批量编译真实说明书，统计成功率并调优 prompt
 - [ ] **设备知识库共享**：社区共建"说明书 → 协议"映射库
 
 ## 许可证
