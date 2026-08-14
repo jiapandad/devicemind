@@ -20,7 +20,7 @@ from homeassistant.components.vacuum import (
 )
 from homeassistant.core import HomeAssistant
 
-from .base import DeviceMindEntityMixin
+from .base import DeviceMindEntityMixin, add_entities_with_state
 from .const import DOMAIN
 
 
@@ -28,7 +28,7 @@ async def async_setup_platform(
     hass: HomeAssistant, config: dict, async_add_entities, discovery_info=None
 ) -> None:
     devices = hass.data.get(DOMAIN, {}).get("devices", {}).get("vacuum", [])
-    async_add_entities([DeviceMindVacuum(hass, device) for device in devices])
+    await add_entities_with_state(hass, devices, DeviceMindVacuum, async_add_entities)
 
 
 class DeviceMindVacuum(DeviceMindEntityMixin, VacuumEntity):

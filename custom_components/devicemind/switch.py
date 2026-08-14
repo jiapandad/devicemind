@@ -7,7 +7,7 @@ from typing import Any
 from homeassistant.components.switch import SwitchEntity
 from homeassistant.core import HomeAssistant
 
-from .base import DeviceMindEntityMixin
+from .base import DeviceMindEntityMixin, add_entities_with_state
 from .const import DOMAIN
 
 
@@ -15,7 +15,7 @@ async def async_setup_platform(
     hass: HomeAssistant, config: dict, async_add_entities, discovery_info=None
 ) -> None:
     devices = hass.data.get(DOMAIN, {}).get("devices", {}).get("switch", [])
-    async_add_entities([DeviceMindSwitch(hass, device) for device in devices])
+    await add_entities_with_state(hass, devices, DeviceMindSwitch, async_add_entities)
 
 
 class DeviceMindSwitch(DeviceMindEntityMixin, SwitchEntity):
@@ -37,3 +37,8 @@ class DeviceMindSwitch(DeviceMindEntityMixin, SwitchEntity):
     async def async_turn_off(self, **kwargs) -> None:
         await self._send("turn_off")
         self._is_on = False
+
+    def update_from_state(self, payload: dict[str, Any]) -> None:
+        power = payload.get("power")
+        if power is not None:
+            self._is_on = power in ("on", "ON", "1", 1, True)

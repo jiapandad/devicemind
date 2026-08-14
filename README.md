@@ -34,6 +34,9 @@ DeviceMind 的思路是：**让 AI 读说明书，把"人肉写 adapter"变成"�
 | PDF/OCR | 文本型 + 扫描型说明书都能读 |
 | 编译缓存 | 相同说明书不重复编译，按内容 hash 自动失效 |
 | HA 集成 | 通用集成读取协议 JSON，覆盖 11 类设备（灯/开关/空调/门锁/扫地机/影音/窗帘/风扇/加湿器/摄像头/传感器），支持 UI 配置（config flow） |
+| 状态回传 | 订阅 MQTT 状态主题，传感器读数/设备真实状态实时更新 |
+| 多协议 | 支持 MQTT 与 HTTP 两种控制协议 |
+| HACS 分发 | 可通过 HACS 一键安装 |
 | Web UI | 浏览器贴说明书，编译并查看/复制协议 JSON |
 | CI | GitHub Actions 自动跑 pytest + ruff（Python 3.10/3.11/3.12） |
 
@@ -109,6 +112,32 @@ python scripts/phase0_demo.py examples/sample_light.txt --id lamp-01
 
 > 也可以走 YAML 配置（兼容旧方式）：在 `configuration.yaml` 里写 `devicemind: {devices_dir: devicemind}`
 
+### 4. 本地端到端验证（无需真实设备）
+
+项目自带 Docker Compose 验证环境（HA + Mosquitto），可一键起本地 HA 并用脚本模拟设备，验证「控制 → 状态回传」完整闭环。
+
+```bash
+# 1. 启动 Home Assistant + MQTT Broker
+docker compose up -d
+
+# 2. 浏览器打开 http://localhost:8123 完成 HA 初始化
+# 3. 在 HA「设置 → 设备与服务」添加 MQTT 集成，broker 地址填 mosquitto（端口 1883）
+# 4. 添加 DeviceMind 集成（config flow），设备目录用默认 devicemind
+
+# 5. 编译一个设备并放入 HA 配置目录
+python scripts/phase0_demo.py examples/sample_light.txt --id lamp-01
+cp .devicemind_cache/lamp-01.json ha-config/devicemind/lamp-01.json
+
+# 6. 用脚本模拟一台 MQTT 设备（订阅指令 + 回传状态）
+pip install paho-mqtt
+python scripts/mock_device.py \
+    --control-topic smarthome/lamp01/set \
+    --state-topic smarthome/lamp01/state \
+    --initial '{"power":"off","brightness":50}'
+
+# 7. 回到 HA，重载 DeviceMind 集成，设备出现在实体列表，可控制并看到状态回传
+```
+
 ## 项目结构
 
 ```
@@ -126,6 +155,8 @@ devicemind/
 │   ├── config_flow.py        # UI 配置流（添加集成）
 │   ├── const.py              # 类型 -> 平台映射
 │   ├── runtime.py            # 协议命令构建（runtime 的 HA 侧镜像）
+│   ├── base.py               # 平台公共基类（命令构建/发布/状态订阅）
+│   ├── mapping.py            # 设备值 <-> HA 枚举双向映射
 │   ├── __init__.py           # 扫描协议 JSON，分发到平台
 │   ├── light.py              # 灯（开关/亮度/颜色/色温）
 │   ├── switch.py             # 开关
@@ -138,6 +169,7 @@ devicemind/
 │   ├── media_player.py       # 影音（音量/开关）
 │   ├── camera.py             # 摄像头
 │   └── sensor.py             # 传感器
+├── hacs.json                 # HACS 分发元数据
 ├── web/                      # Web UI 前端
 ├── scripts/
 │   ├── run_web.py            # 启动 Web UI
@@ -166,8 +198,9 @@ devicemind/
 - [x] **试运行验证**：编译纠错闭环 + 参数边界校验
 - [x] **Web UI**：浏览器编译并查看协议 JSON
 - [x] **HA 集成**：11 类设备平台 + UI 配置（config flow）
-- [ ] **状态回传闭环**：传感器读数、设备真实状态（MQTT 订阅）
-- [ ] **HTTP 协议适配**：支持走 HTTP 回调的设备
+- [x] **状态回传闭环**：传感器读数、设备真实状态（MQTT 订阅）
+- [x] **HTTP 协议适配**：支持走 HTTP 的设备
+- [x] **HACS 分发**：支持 HACS 一键安装
 - [ ] **设备知识库共享**：社区共建"说明书 → 协议"映射库
 
 ## 许可证

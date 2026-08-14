@@ -17,7 +17,7 @@ from typing import Any
 from homeassistant.components.light import ColorMode, LightEntity
 from homeassistant.core import HomeAssistant
 
-from .base import DeviceMindEntityMixin
+from .base import DeviceMindEntityMixin, add_entities_with_state
 from .const import DOMAIN
 
 
@@ -25,7 +25,7 @@ async def async_setup_platform(
     hass: HomeAssistant, config: dict, async_add_entities, discovery_info=None
 ) -> None:
     devices = hass.data.get(DOMAIN, {}).get("devices", {}).get("light", [])
-    async_add_entities([DeviceMindLight(hass, device) for device in devices])
+    await add_entities_with_state(hass, devices, DeviceMindLight, async_add_entities)
 
 
 class DeviceMindLight(DeviceMindEntityMixin, LightEntity):
@@ -36,7 +36,7 @@ class DeviceMindLight(DeviceMindEntityMixin, LightEntity):
         self._init_device(hass, device)
 
         self._is_on = False
-        self._brightness: int | None = None
+        self._attr_brightness: int | None = None
         self._rgb_color: tuple[int, int, int] | None = None
         self._color_temp_kelvin: int | None = None
 
@@ -45,13 +45,16 @@ class DeviceMindLight(DeviceMindEntityMixin, LightEntity):
         self._has_color_temp = self._has_capability("color_temp")
 
         # 声明支持的色彩模式，让 HA 前端正确渲染调节控件
-        modes = {ColorMode.ONOFF}
+        # 注意：ONOFF 不能与其他 color mode 并存，仅在无任何能力时使用
+        modes = set()
         if self._has_brightness:
             modes.add(ColorMode.BRIGHTNESS)
         if self._has_color_temp:
             modes.add(ColorMode.COLOR_TEMP)
         if self._has_color:
             modes.add(ColorMode.RGB)
+        if not modes:
+            modes.add(ColorMode.ONOFF)
         self._attr_supported_color_modes = modes
 
     # ------------------------------------------------------------------
@@ -60,10 +63,6 @@ class DeviceMindLight(DeviceMindEntityMixin, LightEntity):
     @property
     def is_on(self) -> bool:
         return self._is_on
-
-    @property
-    def brightness(self) -> int | None:
-        return self._brightness
 
     @property
     def rgb_color(self) -> tuple[int, int, int] | None:
@@ -96,7 +95,7 @@ class DeviceMindLight(DeviceMindEntityMixin, LightEntity):
         if brightness is not None and self._has_brightness:
             scaled = self._scale_brightness(brightness)
             await self._send("set_brightness", {"brightness": scaled})
-            self._brightness = brightness
+            self._attr_brightness = brightness
 
         # 3. 颜色（RGB -> hex 字符串）
         rgb = kwargs.get("rgb_color")
@@ -114,6 +113,14 @@ class DeviceMindLight(DeviceMindEntityMixin, LightEntity):
     async def async_turn_off(self, **kwargs) -> None:
         await self._send("turn_off")
         self._is_on = False
+
+    def update_from_state(self, payload: dict[str, Any]) -> None:
+        super().update_from_state(payload)
+        if "brightness" in payload:
+            try:
+                self._attr_brightness = round(float(payload["brightness"]) / 100 * 255)
+            except (TypeError, ValueError):
+                pass
 
     # ------------------------------------------------------------------
     # 指令发送

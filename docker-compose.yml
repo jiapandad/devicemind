@@ -1,0 +1,35 @@
+# 本地验证环境：Home Assistant + MQTT Broker (Mosquitto)
+#
+# 用法：
+#   docker compose up -d
+#
+# - Home Assistant  http://localhost:8123
+# - MQTT Broker      localhost:1883（匿名，仅供本地测试）
+#
+# 说明：
+#   - 本地的 custom_components/devicemind 直接挂载进 HA，改代码后重启集成即生效
+#   - HA 配置持久化在 ./ha-config（已加入 .gitignore，勿提交）
+#   - mosquitto 走 docker.1ms.run 加速器（国内直连 Docker Hub 常超时）
+#   - HA 镜像在 ghcr.io：国内直连常超时，如需加速可将镜像前缀换成
+#     docker.m.daocloud.io/ghcr/ 或你自建的 ghcr 代理
+services:
+  homeassistant:
+    image: ghcr.io/home-assistant/home-assistant:stable
+    container_name: homeassistant
+    volumes:
+      - ./ha-config:/config
+      - ./custom_components/devicemind:/config/custom_components/devicemind
+    ports:
+      - "8123:8123"
+    restart: unless-stopped
+    depends_on:
+      - mosquitto
+
+  mosquitto:
+    image: docker.1ms.run/library/eclipse-mosquitto:2
+    container_name: mosquitto
+    volumes:
+      - ./mosquitto:/mosquitto/config
+    ports:
+      - "1883:1883"
+    restart: unless-stopped

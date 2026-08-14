@@ -93,8 +93,14 @@ async def _setup_devices(hass: HomeAssistant, devices_dir: str) -> None:
 
 
 async def async_setup(hass: HomeAssistant, config: ConfigType) -> bool:
-    """YAML 配置入口（兼容旧方式）。"""
-    devices_dir = config.get(DOMAIN, {}).get("devices_dir", DEFAULT_DEVICES_DIR)
+    """YAML 配置入口（兼容旧方式）。
+
+    注意：config entry 模式下 HA 也会用空配置调用本函数做 domain 初始化，
+    此时不做任何事，实际扫描由 async_setup_entry 完成，避免设备重复加载。
+    """
+    if DOMAIN not in config:
+        return True
+    devices_dir = config[DOMAIN].get("devices_dir", DEFAULT_DEVICES_DIR)
     await _setup_devices(hass, devices_dir)
     return True
 

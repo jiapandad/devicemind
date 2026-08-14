@@ -7,7 +7,7 @@ from typing import Any
 from homeassistant.components.lock import LockEntity
 from homeassistant.core import HomeAssistant
 
-from .base import DeviceMindEntityMixin
+from .base import DeviceMindEntityMixin, add_entities_with_state
 from .const import DOMAIN
 
 
@@ -15,7 +15,7 @@ async def async_setup_platform(
     hass: HomeAssistant, config: dict, async_add_entities, discovery_info=None
 ) -> None:
     devices = hass.data.get(DOMAIN, {}).get("devices", {}).get("lock", [])
-    async_add_entities([DeviceMindLock(hass, device) for device in devices])
+    await add_entities_with_state(hass, devices, DeviceMindLock, async_add_entities)
 
 
 class DeviceMindLock(DeviceMindEntityMixin, LockEntity):
@@ -37,3 +37,7 @@ class DeviceMindLock(DeviceMindEntityMixin, LockEntity):
     async def async_unlock(self, **kwargs) -> None:
         await self._send("unlock")
         self._is_locked = False
+
+    def update_from_state(self, payload: dict[str, Any]) -> None:
+        if "lock_state" in payload:
+            self._is_locked = payload["lock_state"] in ("locked", "lock", "1", 1, True)

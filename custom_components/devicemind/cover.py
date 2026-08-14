@@ -14,7 +14,7 @@ from typing import Any
 from homeassistant.components.cover import CoverEntity, CoverEntityFeature
 from homeassistant.core import HomeAssistant
 
-from .base import DeviceMindEntityMixin
+from .base import DeviceMindEntityMixin, add_entities_with_state
 from .const import DOMAIN
 
 
@@ -22,7 +22,7 @@ async def async_setup_platform(
     hass: HomeAssistant, config: dict, async_add_entities, discovery_info=None
 ) -> None:
     devices = hass.data.get(DOMAIN, {}).get("devices", {}).get("cover", [])
-    async_add_entities([DeviceMindCover(hass, device) for device in devices])
+    await add_entities_with_state(hass, devices, DeviceMindCover, async_add_entities)
 
 
 class DeviceMindCover(DeviceMindEntityMixin, CoverEntity):
@@ -74,3 +74,11 @@ class DeviceMindCover(DeviceMindEntityMixin, CoverEntity):
         await self._send("set_position", {"position": position})
         self._position = position
         self._is_closed = position == 0
+
+    def update_from_state(self, payload: dict[str, Any]) -> None:
+        if "position" in payload:
+            try:
+                self._position = int(payload["position"])
+                self._is_closed = self._position == 0
+            except (TypeError, ValueError):
+                pass

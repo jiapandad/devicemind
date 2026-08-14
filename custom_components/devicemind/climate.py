@@ -18,7 +18,7 @@ from homeassistant.components.climate.const import ClimateEntityFeature
 from homeassistant.const import UnitOfTemperature
 from homeassistant.core import HomeAssistant
 
-from .base import DeviceMindEntityMixin
+from .base import DeviceMindEntityMixin, add_entities_with_state
 from .const import DOMAIN
 from .mapping import normalize_hvac_key, reverse_hvac_value
 
@@ -38,7 +38,7 @@ async def async_setup_platform(
     hass: HomeAssistant, config: dict, async_add_entities, discovery_info=None
 ) -> None:
     devices = hass.data.get(DOMAIN, {}).get("devices", {}).get("climate", [])
-    async_add_entities([DeviceMindClimate(hass, device) for device in devices])
+    await add_entities_with_state(hass, devices, DeviceMindClimate, async_add_entities)
 
 
 class DeviceMindClimate(DeviceMindEntityMixin, ClimateEntity):
@@ -63,6 +63,7 @@ class DeviceMindClimate(DeviceMindEntityMixin, ClimateEntity):
         self._attr_min_temp = float(temp_spec.get("min", 16))
         self._attr_max_temp = float(temp_spec.get("max", 30))
         self._attr_target_temperature_step = 1.0
+        self._current_temperature: float | None = None
 
         # 支持的模式：优先取 mode 能力的 enum，否则给一组常见默认
         if self._device_modes:
@@ -90,8 +91,15 @@ class DeviceMindClimate(DeviceMindEntityMixin, ClimateEntity):
     # ------------------------------------------------------------------
     @property
     def current_temperature(self) -> float | None:
-        # 状态回传闭环接入前，当前温度未知
-        return None
+        return self._current_temperature
+
+    def update_from_state(self, payload: dict[str, Any]) -> None:
+        super().update_from_state(payload)
+        if "temperature" in payload:
+            try:
+                self._current_temperature = float(payload["temperature"])
+            except (TypeError, ValueError):
+                pass
 
     @property
     def target_temperature(self) -> float | None:

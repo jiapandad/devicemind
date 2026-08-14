@@ -12,7 +12,7 @@ from homeassistant.components.media_player import MediaPlayerEntity, MediaPlayer
 from homeassistant.const import STATE_OFF, STATE_ON
 from homeassistant.core import HomeAssistant
 
-from .base import DeviceMindEntityMixin
+from .base import DeviceMindEntityMixin, add_entities_with_state
 from .const import DOMAIN
 
 
@@ -20,7 +20,7 @@ async def async_setup_platform(
     hass: HomeAssistant, config: dict, async_add_entities, discovery_info=None
 ) -> None:
     devices = hass.data.get(DOMAIN, {}).get("devices", {}).get("media_player", [])
-    async_add_entities([DeviceMindMediaPlayer(hass, device) for device in devices])
+    await add_entities_with_state(hass, devices, DeviceMindMediaPlayer, async_add_entities)
 
 
 class DeviceMindMediaPlayer(DeviceMindEntityMixin, MediaPlayerEntity):

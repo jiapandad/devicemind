@@ -170,6 +170,14 @@ DEVICE_SCHEMA: dict[str, Any] = {
                         },
                     },
                 },
+                "state_topic": {
+                    "type": "string",
+                    "description": "设备状态回传的 MQTT 主题（可选）。设备通过该主题上报状态，集成订阅后更新实体状态",
+                },
+                "state_map": {
+                    "type": "object",
+                    "description": "状态 payload 字段名 -> 设备能力名 的映射（可选）。如 {\"power\": \"power\", \"temp\": \"temperature\"}，用于解析状态回传 payload",
+                },
             },
         },
     },

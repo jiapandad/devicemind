@@ -11,6 +11,9 @@ venv/
 # 缓存（编译产物）
 .devicemind_cache/
 
+# Home Assistant 配置目录（docker compose 生成，含敏感信息）
+ha-config/
+
 # 环境变量（含 API Key，切勿提交）
 .env
 .env.local

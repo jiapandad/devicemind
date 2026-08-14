@@ -12,7 +12,7 @@ from typing import Any
 from homeassistant.components.humidifier import HumidifierEntity
 from homeassistant.core import HomeAssistant
 
-from .base import DeviceMindEntityMixin
+from .base import DeviceMindEntityMixin, add_entities_with_state
 from .const import DOMAIN
 
 
@@ -20,7 +20,7 @@ async def async_setup_platform(
     hass: HomeAssistant, config: dict, async_add_entities, discovery_info=None
 ) -> None:
     devices = hass.data.get(DOMAIN, {}).get("devices", {}).get("humidifier", [])
-    async_add_entities([DeviceMindHumidifier(hass, device) for device in devices])
+    await add_entities_with_state(hass, devices, DeviceMindHumidifier, async_add_entities)
 
 
 class DeviceMindHumidifier(DeviceMindEntityMixin, HumidifierEntity):

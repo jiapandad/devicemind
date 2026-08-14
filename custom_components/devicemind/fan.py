@@ -12,7 +12,7 @@ from typing import Any
 from homeassistant.components.fan import FanEntity, FanEntityFeature
 from homeassistant.core import HomeAssistant
 
-from .base import DeviceMindEntityMixin
+from .base import DeviceMindEntityMixin, add_entities_with_state
 from .const import DOMAIN
 from .mapping import map_fan_speed
 
@@ -21,7 +21,7 @@ async def async_setup_platform(
     hass: HomeAssistant, config: dict, async_add_entities, discovery_info=None
 ) -> None:
     devices = hass.data.get(DOMAIN, {}).get("devices", {}).get("fan", [])
-    async_add_entities([DeviceMindFan(hass, device) for device in devices])
+    await add_entities_with_state(hass, devices, DeviceMindFan, async_add_entities)
 
 
 class DeviceMindFan(DeviceMindEntityMixin, FanEntity):
